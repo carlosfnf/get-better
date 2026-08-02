@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+    <style>
+        /* Base Styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #000;
+            color: white;
+            overflow: hidden;
+            transition: background 0.5s ease;
+        }
+
+        /* Video Background */
+        #video-background {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            z-index: 0;
+            transform: translate(-50%, -50%);
+            object-fit: cover;
+            transition: opacity 0.8s ease;
+        }
+
+        /* Falling Snow Container */
+        #snow-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            transition: opacity 0.8s ease;
+        }
+
+        .snowflake {
+            position: absolute;
+            top: -50px;
+            width: 25px; 
+            height: 25px;
+            opacity: 0.8;
+            animation: fall linear forwards;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translateY(110vh) rotate(360deg);
+            }
+        }
+
+        /* Main UI (Glassmorphism) */
+        .ui-container {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(5px);
+            transition: opacity 0.8s ease;
+        }
+
+        h1 {
+            font-size: 4rem;
+            text-shadow: 0 0 15px rgba(255,255,255,0.5);
+            margin-bottom: 20px;
+        }
+
+        .search-bar {
+            padding: 15px 25px;
+            width: 400px;
+            border-radius: 30px;
+            border: none;
+            outline: none;
+            font-size: 1.2rem;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            backdrop-filter: blur(10px);
+            margin-bottom: 40px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: background 0.3s;
+        }
+
+        .search-bar::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .search-bar:focus {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Buttons Array */
+        .buttons-grid {
+            display: flex;
+            gap: 20px;
+        }
+
+        .game-btn {
+            padding: 20px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(135deg, #6e8efb, #a777e3);
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .game-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 25px rgba(0,0,0,0.5);
+        }
+
+        /* Top Right Settings Button */
+        .settings-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            backdrop-filter: blur(5px);
+        }
+
+        .settings-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Settings Menu */
+        #settings-menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(20, 20, 20, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            z-index: 100;
+            width: 350px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #settings-menu h2 {
+            margin-top: 0;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+
+        .setting-group input {
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 5px;
+            border: none;
+            background: #333;
+            color: white;
+        }
+
+        .close-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Cinematic Transition Overlay / Game Viewer */
+        #game-viewer {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 200;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        #loading-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: white;
+            font-weight: bold;
+            letter-spacing: 2px;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+            z-index: 202;
+            pointer-events: none;
+        }
+
+        #game-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+
+        .exit-game-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 71, 87, 0.8);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            z-index: 203;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Video Background -->
+    <video autoplay muted loop playsinline id="video-background">
+        <source src="https://motionbgs.com/media/758/mountain-landscape-in-autumn.960x540.mp4" type="video/mp4">
+    </video>
+
+    <!-- Falling Particle Container -->
+    <div id="snow-container"></div>
+
+    <!-- Main Interface -->
+    <div class="ui-container" id="main-ui">
+        <button class="settings-btn" onclick="toggleSettings(true)">⚙️ Options</button>
+        
+        <h1>BE BETTER Nigeria reborn</h1>
+        
+        <input type="text" id="searchBar" class="search-bar" placeholder="Search quick access games..." onkeyup="filterGames()">
+
+        <div class="buttons-grid" id="game-buttons">
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/GM.html">GN-math</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/EPG.html">EGP</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/MC1.8.html">Minecraft</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RB.html">Retrobowl</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RBC.html">retrobowl college</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/TOTM.html">TOTM</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/soundboard.html">soundboard</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RBC.html">TBD</button>
+
+        </div>
+    </div>
+
+    <!-- Settings Menu -->
+    <div id="settings-menu">
+        <h2>Options</h2>
+        <div class="setting-group">
+            <label>Background URL (Image or MP4):</label>
+            <input type="text" id="bg-input" placeholder="Paste link here...">
+        </div>
+        <div class="setting-group">
+            <label>Falling PNG URL (Snowflake):</label>
+            <input type="text" id="snow-input" placeholder="Paste PNG URL here...">
+        </div>
+        <button class="close-btn" onclick="saveSettings()">Save & Close</button>
+    </div>
+
+    <!-- Game Viewer & Transition Container -->
+    <div id="game-viewer">
+        <button class="exit-game-btn" onclick="closeGame()">← Exit Game</button>
+        <div id="loading-text">LOADING GAME...</div>
+        <iframe id="game-frame"></iframe>
+    </div>
+
+    <!-- Logic Script -->
+    <script>
+        var gameButtons = document.querySelectorAll('.game-btn');
+        var gameViewer = document.getElementById('game-viewer');
+        var gameFrame = document.getElementById('game-frame');
+        var loadingText = document.getElementById('loading-text');
+        var videoBackground = document.getElementById('video-background');
+        var snowContainer = document.getElementById('snow-container');
+        var mainUi = document.getElementById('main-ui');
+
+        gameButtons.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var gameUrl = btn.getAttribute('data-url');
+                
+                // 1. Fade out background, snow, and main menu UI
+                videoBackground.style.opacity = '0';
+                snowContainer.style.opacity = '0';
+                mainUi.style.opacity = '0';
+
+                // Activate viewer layer
+                gameViewer.style.display = 'block';
+                setTimeout(function() {
+                    gameViewer.style.opacity = '1';
+                }, 50);
+
+                // 2. Fade in loading text after background fades
+                setTimeout(function() {
+                    loadingText.style.opacity = '1';
+                }, 400);
+
+                // 3. Fetch the jsDelivr code behind the scenes
+                fetch(gameUrl)
+                    .then(function(response) {
+                        if (!response.ok) throw new Error("Network response was not ok");
+                        return response.text();
+                    })
+                    .then(function(htmlCode) {
+                        gameFrame.srcdoc = htmlCode;
+
+                        // Give the iframe a brief moment to process code, then transition
+                        setTimeout(function() {
+                            // Fade out loading text
+                            loadingText.style.opacity = '0';
+
+                            // Fade in the actual game iframe
+                            setTimeout(function() {
+                                gameFrame.style.opacity = '1';
+                            }, 400);
+                        }, 800);
+                    })
+                    .catch(function(error) {
+                        loadingText.innerText = "FAILED TO LOAD GAME";
+                        console.error('Error fetching game:', error);
+                    });
+            });
+        });
+
+        function closeGame() {
+            // Fade out game viewer
+            gameViewer.style.opacity = '0';
+            gameFrame.style.opacity = '0';
+            loadingText.style.opacity = '0';
+
+            setTimeout(function() {
+                gameViewer.style.display = 'none';
+                gameFrame.srcdoc = ""; // Clear game from memory
+                loadingText.innerText = "LOADING GAME..."; // Reset text
+            }, 800);
+
+            // Fade background, snow, and main menu back in
+            videoBackground.style.opacity = '1';
+            snowContainer.style.opacity = '1';
+            mainUi.style.opacity = '1';
+        }
+
+        // --- Search Logic ---
+        function filterGames() {
+            var query = document.getElementById('searchBar').value.toLowerCase();
+            gameButtons.forEach(function(btn) {
+                var text = btn.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    btn.style.display = "block";
+                } else {
+                    btn.style.display = "none";
+                }
+            });
+        }
+
+        // --- Settings & Background Logic ---
+        var currentSnowPng = 'https://cdn-icons-png.flaticon.com/512/2316/2316130.png'; 
+        var settingsMenu = document.getElementById('settings-menu');
+        
+        function toggleSettings(show) {
+            settingsMenu.style.display = show ? 'block' : 'none';
+        }
+
+        function saveSettings() {
+            var bgUrl = document.getElementById('bg-input').value;
+            var snowUrl = document.getElementById('snow-input').value;
+
+            if (bgUrl.trim() !== "") {
+                if (bgUrl.toLowerCase().endsWith('.mp4') || bgUrl.toLowerCase().endsWith('.webm')) {
+                    videoBackground.src = bgUrl;
+                    videoBackground.style.display = 'block';
+                    document.body.style.backgroundImage = 'none';
+                } else {
+                    document.body.style.backgroundImage = 'url("' + bgUrl + '")';
+                    document.body.style.backgroundSize = 'cover';
+                    document.body.style.backgroundPosition = 'center';
+                    videoBackground.style.display = 'none';
+                }
+            }
+            if (snowUrl.trim() !== "") {
+                currentSnowPng = snowUrl;
+            }
+            toggleSettings(false);
+        }
+
+        // --- Particle Spawner ---
+        function spawnSnowflake() {
+            var container = document.getElementById('snow-container');
+            var flake = document.createElement('img');
+            
+            flake.src = currentSnowPng;
+            flake.classList.add('snowflake');
+            
+            flake.style.left = Math.random() * 100 + 'vw';
+            var size = (Math.random() * 15 + 15) + 'px'; 
+            flake.style.width = size;
+            flake.style.height = size;
+            flake.style.animationDuration = Math.random() * 3 + 4 + 's'; 
+            
+            container.appendChild(flake);
+            
+            setTimeout(function() {
+                flake.remove();
+            }, 7000); 
+        }
+
+        if (!window.snowIntervalStarted) {
+            setInterval(spawnSnowflake, 300);
+            window.snowIntervalStarted = true;
+        }
+    </script>
+</body>
+</html>
