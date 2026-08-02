@@ -191,58 +191,6 @@
             cursor: pointer;
             font-weight: bold;
         }
-
-        /* Cinematic Transition Overlay / Game Viewer */
-        #game-viewer {
-            display: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            z-index: 200;
-            opacity: 0;
-            transition: opacity 0.8s ease;
-        }
-
-        #loading-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 2rem;
-            color: white;
-            font-weight: bold;
-            letter-spacing: 2px;
-            opacity: 0;
-            transition: opacity 0.6s ease;
-            z-index: 202;
-            pointer-events: none;
-        }
-
-        #game-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            background: transparent;
-            opacity: 0;
-            transition: opacity 0.8s ease;
-        }
-
-        .exit-game-btn {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 71, 87, 0.8);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 1rem;
-            z-index: 203;
-        }
     </style>
 </head>
 <body>
@@ -265,14 +213,13 @@
 
         <div class="buttons-grid" id="game-buttons">
             <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/GM.html">GN-math</button>
-            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/EPG.html">EGP</button>
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/EGP.html">EGP</button>
             <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/MC1.8.html">Minecraft</button>
             <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RB.html">Retrobowl</button>
             <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RBC.html">retrobowl college</button>
             <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/TOTM.html">TOTM</button>
             <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/soundboard.html">soundboard</button>
-            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RBC.html">TBD</button>
-
+            <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RBC.html">copy does nothing</button>
         </div>
     </div>
 
@@ -290,87 +237,45 @@
         <button class="close-btn" onclick="saveSettings()">Save & Close</button>
     </div>
 
-    <!-- Game Viewer & Transition Container -->
-    <div id="game-viewer">
-        <button class="exit-game-btn" onclick="closeGame()">← Exit Game</button>
-        <div id="loading-text">LOADING GAME...</div>
-        <iframe id="game-frame"></iframe>
-    </div>
-
     <!-- Logic Script -->
     <script>
         var gameButtons = document.querySelectorAll('.game-btn');
-        var gameViewer = document.getElementById('game-viewer');
-        var gameFrame = document.getElementById('game-frame');
-        var loadingText = document.getElementById('loading-text');
         var videoBackground = document.getElementById('video-background');
         var snowContainer = document.getElementById('snow-container');
-        var mainUi = document.getElementById('main-ui');
 
         gameButtons.forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var gameUrl = btn.getAttribute('data-url');
+                var gameTitle = btn.innerText;
+
+                // 1. Open a blank tab immediately (prevents popup blockers)
+                var newWindow = window.open('about:blank', '_blank');
                 
-                // 1. Fade out background, snow, and main menu UI
-                videoBackground.style.opacity = '0';
-                snowContainer.style.opacity = '0';
-                mainUi.style.opacity = '0';
+                if (newWindow) {
+                    // Set loading placeholder text inside the new tab
+                    newWindow.document.write('<html><head><title>Loading...</title></head><body style="background:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>LOADING GAME...</h1></body></html>');
 
-                // Activate viewer layer
-                gameViewer.style.display = 'block';
-                setTimeout(function() {
-                    gameViewer.style.opacity = '1';
-                }, 50);
-
-                // 2. Fade in loading text after background fades
-                setTimeout(function() {
-                    loadingText.style.opacity = '1';
-                }, 400);
-
-                // 3. Fetch the jsDelivr code behind the scenes
-                fetch(gameUrl)
-                    .then(function(response) {
-                        if (!response.ok) throw new Error("Network response was not ok");
-                        return response.text();
-                    })
-                    .then(function(htmlCode) {
-                        gameFrame.srcdoc = htmlCode;
-
-                        // Give the iframe a brief moment to process code, then transition
-                        setTimeout(function() {
-                            // Fade out loading text
-                            loadingText.style.opacity = '0';
-
-                            // Fade in the actual game iframe
-                            setTimeout(function() {
-                                gameFrame.style.opacity = '1';
-                            }, 400);
-                        }, 800);
-                    })
-                    .catch(function(error) {
-                        loadingText.innerText = "FAILED TO LOAD GAME";
-                        console.error('Error fetching game:', error);
-                    });
+                    // 2. Fetch the jsDelivr code behind the scenes
+                    fetch(gameUrl)
+                        .then(function(response) {
+                            if (!response.ok) throw new Error("Network response was not ok");
+                            return response.text();
+                        })
+                        .then(function(htmlCode) {
+                            // 3. Write fetched HTML code to the new tab document
+                            newWindow.document.open();
+                            newWindow.document.write(htmlCode);
+                            newWindow.document.close();
+                        })
+                        .catch(function(error) {
+                            newWindow.document.open();
+                            newWindow.document.write('<html><head><title>Error</title></head><body style="background:black;color:red;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>FAILED TO LOAD GAME</h1></body></html>');
+                            newWindow.document.close();
+                            console.error('Error fetching game:', error);
+                        });
+                }
             });
         });
-
-        function closeGame() {
-            // Fade out game viewer
-            gameViewer.style.opacity = '0';
-            gameFrame.style.opacity = '0';
-            loadingText.style.opacity = '0';
-
-            setTimeout(function() {
-                gameViewer.style.display = 'none';
-                gameFrame.srcdoc = ""; // Clear game from memory
-                loadingText.innerText = "LOADING GAME..."; // Reset text
-            }, 800);
-
-            // Fade background, snow, and main menu back in
-            videoBackground.style.opacity = '1';
-            snowContainer.style.opacity = '1';
-            mainUi.style.opacity = '1';
-        }
 
         // --- Search Logic ---
         function filterGames() {
