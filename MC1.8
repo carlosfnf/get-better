@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Eaglercraft Launcher</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #111; color: white; }
+        button { padding: 15px 30px; font-size: 1.2rem; cursor: pointer; border-radius: 8px; border: none; background: #3498db; color: white; font-weight: bold; }
+        button:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+
+    <button onclick="launchGame()">Launch Eaglercraft in about:blank</button>
+
+    <script>
+        function launchGame() {
+            // The full HTML code of the game
+            const gameCode = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EaglercraftX</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background-color: #000; }
+    #game_frame { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+  </style>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/bubbls/loltheygotbannedfromjsdelivr@38f40924ae70b843f3d4d0a5dc3d6ba13ca3a461/classes.min.js"><\/script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/bubbls/loltheygotbannedfromjsdelivr@38f40924ae70b843f3d4d0a5dc3d6ba13ca3a461/fix-webm-duration.js"><\/script>
+  <script type="text/javascript">
+    window.addEventListener('load', function () {
+      window.focus();
+      document.body.addEventListener('click', function (e) { window.focus(); }, false);
+    });
+
+    window.addEventListener("load", () => {
+        window.eaglercraftXOpts = {
+            container: "game_frame",
+            assetsURI: "https://cdn.jsdelivr.net/gh/bubbls/loltheygotbannedfromjsdelivr@38f40924ae70b843f3d4d0a5dc3d6ba13ca3a461/assets.epk",
+            localesURI: "lang/",
+            servers: [
+              { addr: "wss://mc.arch.lol/", name: "ArchMC" },
+              { addr: "wss://mc.asspixel.net", name: "AssPixel" },
+              { addr: "wss://sus.shhnowisnottheti.me", name: "Ayunboom" },
+              { addr: "wss://aeon-network.net/1.8", name: "Aeon" },
+              { addr: "wss://zentic.org/", name: "Zentic" }
+            ]
+        };
+        main();
+    });
+  <\/script>
+</head>
+<body>
+  <div id="game_frame"></div>
+</body>
+</html>`;
+
+            // Create the about:blank window
+            const win = window.open('about:blank', '_blank');
+            win.document.open();
+            win.document.write(gameCode);
+            win.document.close();
+        }
+    </script>
+</body>
+</html>
