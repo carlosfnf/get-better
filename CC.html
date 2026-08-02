@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Automatic Tab Flooder with Countdown</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin-top: 50px;
+  }
+  #timer {
+    font-size: 72px;
+    font-weight: bold;
+    color: #dc3545;
+  }
+  #message {
+    margin-top: 20px;
+    font-size: 20px;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<h1>Automatic Tab Flooder</h1>
+<p>Flooding will start after the countdown below:</p>
+<div id="timer">5</div>
+<div id="message">Prepare your browser...</div>
+
+<script>
+  const links = [
+    "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+        "https://www.google.com/?safe=active&ssui=on", 
+    
+    // Add your URLs here
+  ];
+
+  let countdown = 5;
+  const timerElement = document.getElementById('timer');
+  const messageElement = document.getElementById('message');
+  let floodInterval;
+
+  function openAllLinks() {
+    // Open all links rapidly with a short delay between batches
+    links.forEach(url => {
+      window.open(url, "_blank");
+    });
+  }
+
+  function startFlooding() {
+    messageElement.textContent = "Flooding started! Close this tab to stop.";
+    // Flood tabs every 100 milliseconds
+    floodInterval = setInterval(openAllLinks, 100);
+  }
+
+  function countdownTick() {
+    countdown--;
+    timerElement.textContent = countdown;
+    if (countdown <= 0) {
+      clearInterval(countdownTimer);
+      timerElement.textContent = "GO!";
+      startFlooding();
+    }
+  }
+
+  // Start countdown on page load
+  timerElement.textContent = countdown;
+  const countdownTimer = setInterval(countdownTick, 1000);
+
+  // Optional: stop flooding if tab is closed or page is unloaded
+  window.addEventListener('beforeunload', () => {
+    clearInterval(floodInterval);
+  });
+</script>
+
+</body>
+</html>
