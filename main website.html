@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome</title>
     <style>
         /* Base Styles */
-        body, html {
+        body,
+        html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #000;
+            background-color: #050505;
             color: white;
             overflow: hidden;
             transition: background 0.5s ease;
@@ -33,7 +35,7 @@
             transition: opacity 0.8s ease;
         }
 
-        /* Falling Snow Container */
+        /* Falling Snow Container - Now with Swaying */
         #snow-container {
             position: absolute;
             top: 0;
@@ -42,22 +44,83 @@
             height: 100%;
             pointer-events: none;
             z-index: 1;
-            transition: opacity 0.8s ease;
         }
 
         .snowflake {
             position: absolute;
             top: -50px;
-            width: 25px; 
-            height: 25px;
             opacity: 0.8;
             animation: fall linear forwards;
+            filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
         }
 
         @keyframes fall {
-            to {
-                transform: translateY(110vh) rotate(360deg);
+            0% {
+                transform: translateY(-10vh) translateX(0) rotate(0deg);
             }
+
+            50% {
+                transform: translateY(50vh) translateX(25px) rotate(180deg);
+            }
+
+            100% {
+                transform: translateY(110vh) translateX(-25px) rotate(360deg);
+            }
+        }
+
+        /* Splash Screen Overlay */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 5, 0.9);
+            backdrop-filter: blur(15px);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .launch-btn {
+            position: relative;
+            padding: 25px 60px;
+            font-size: 2rem;
+            font-weight: 800;
+            color: white;
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(255, 71, 87, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.2);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* Cooler Hover Sweep */
+        .launch-btn::after,
+        .game-btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transform: skewX(-20deg);
+            transition: 0.5s;
+        }
+
+        .launch-btn:hover::after,
+        .game-btn:hover::after {
+            left: 150%;
+        }
+
+        .launch-btn:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 40px rgba(255, 71, 87, 0.7);
         }
 
         /* Main UI (Glassmorphism) */
@@ -69,81 +132,106 @@
             align-items: center;
             justify-content: center;
             height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(5px);
-            transition: opacity 0.8s ease;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(8px);
         }
 
-        h1 {
-            font-size: 4rem;
-            text-shadow: 0 0 15px rgba(255,255,255,0.5);
+        /* Animated Gradient Title */
+        h1.neon-title {
+            font-size: 4.5rem;
             margin-bottom: 20px;
+            font-weight: 900;
+            text-transform: uppercase;
+            background: linear-gradient(to right, #ff4757, #ff6b81, #6e8efb, #a777e3, #ff4757);
+            background-size: 300% 100%;
+            -webkit-background-clip: text;
+            color: transparent;
+            animation: bg-shift 6s linear infinite;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.2));
+        }
+
+        @keyframes bg-shift {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            100% {
+                background-position: 100% 50%;
+            }
         }
 
         .search-bar {
-            padding: 15px 25px;
-            width: 400px;
-            border-radius: 30px;
-            border: none;
+            padding: 18px 30px;
+            width: 450px;
+            border-radius: 40px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
             outline: none;
             font-size: 1.2rem;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
             color: white;
             backdrop-filter: blur(10px);
-            margin-bottom: 40px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            transition: background 0.3s;
-        }
-
-        .search-bar::placeholder {
-            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 50px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
         }
 
         .search-bar:focus {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #6e8efb;
+            box-shadow: 0 0 20px rgba(110, 142, 251, 0.4);
+            transform: scale(1.02);
         }
 
         /* Buttons Array */
         .buttons-grid {
             display: flex;
             gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 900px;
         }
 
         .game-btn {
+            position: relative;
             padding: 20px 40px;
-            font-size: 1.5rem;
+            font-size: 1.2rem;
             font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             color: white;
             background: linear-gradient(135deg, #6e8efb, #a777e3);
             border: none;
-            border-radius: 15px;
+            border-radius: 20px;
             cursor: pointer;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-            transition: transform 0.2s, box-shadow 0.2s;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
         .game-btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 25px rgba(0,0,0,0.5);
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(110, 142, 251, 0.6);
         }
 
         /* Top Right Settings Button */
         .settings-btn {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
+            top: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             color: white;
-            padding: 10px 20px;
-            border-radius: 20px;
+            padding: 12px 25px;
+            border-radius: 30px;
             cursor: pointer;
-            font-size: 1rem;
+            font-size: 1.1rem;
             backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
         }
 
         .settings-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(5deg) scale(1.05);
         }
 
         /* Settings Menu */
@@ -153,47 +241,68 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(20, 20, 20, 0.9);
+            background: rgba(20, 20, 20, 0.95);
             padding: 40px;
-            border-radius: 20px;
+            border-radius: 25px;
             z-index: 100;
-            width: 350px;
-            box-shadow: 0 0 30px rgba(0,0,0,0.8);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        #settings-menu h2 {
-            margin-top: 0;
+            width: 380px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .setting-group {
             display: flex;
             flex-direction: column;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .setting-group input {
-            padding: 10px;
-            margin-top: 5px;
-            border-radius: 5px;
+            padding: 12px;
+            margin-top: 8px;
+            border-radius: 10px;
             border: none;
             background: #333;
             color: white;
+            outline: none;
+            transition: background 0.3s;
+        }
+
+        .setting-group input:focus {
+            background: #444;
+            box-shadow: 0 0 10px rgba(255, 71, 87, 0.3);
         }
 
         .close-btn {
-            background: #ff4757;
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
             color: white;
             border: none;
-            padding: 10px;
+            padding: 15px;
             width: 100%;
-            border-radius: 5px;
+            border-radius: 10px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 1.1rem;
+            transition: transform 0.2s;
+        }
+
+        .close-btn:hover {
+            transform: scale(1.02);
         }
     </style>
 </head>
+
 <body>
+
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <h1 class="neon-title" style="font-size: 3.5rem; margin-bottom: 40px;">BE BETTER</h1>
+        <button class="launch-btn" id="launch-app-btn">LAUNCH DASHBOARD</button>
+    </div>
+
+    <!-- Background Audio -->
+    <audio id="bg-audio" loop>
+        <source src="" type="audio/mp3">
+    </audio>
 
     <!-- Video Background -->
     <video autoplay muted loop playsinline id="video-background">
@@ -206,9 +315,9 @@
     <!-- Main Interface -->
     <div class="ui-container" id="main-ui">
         <button class="settings-btn" onclick="toggleSettings(true)">⚙️ Options</button>
-        
-        <h1>BE BETTER Nigeria reborn</h1>
-        
+
+        <h1 class="neon-title">BE BETTER Nigeria reborn</h1>
+
         <input type="text" id="searchBar" class="search-bar" placeholder="Search quick access games..." onkeyup="filterGames()">
 
         <div class="buttons-grid" id="game-buttons">
@@ -225,82 +334,197 @@
 
     <!-- Settings Menu -->
     <div id="settings-menu">
-        <h2>Options</h2>
+        <h2 style="margin-top: 0; color: #ff4757;">Options</h2>
         <div class="setting-group">
-            <label>Background URL (Image or MP4):</label>
+            <label>Background URL (Image/MP4):</label>
             <input type="text" id="bg-input" placeholder="Paste link here...">
         </div>
         <div class="setting-group">
             <label>Falling PNG URL (Snowflake):</label>
             <input type="text" id="snow-input" placeholder="Paste PNG URL here...">
         </div>
+        <div class="setting-group">
+            <label>Local Song File (MP3/WAV):</label>
+            <input type="file" id="audio-file-input" accept="audio/*">
+        </div>
         <button class="close-btn" onclick="saveSettings()">Save & Close</button>
     </div>
 
-    <!-- Logic Script -->
     <script>
-        var gameButtons = document.querySelectorAll('.game-btn');
-        var videoBackground = document.getElementById('video-background');
-        var snowContainer = document.getElementById('snow-container');
+        // ==========================================
+        // SEAMLESS FADE ENGINE
+        // ==========================================
+        
+        // This string contains the CSS and HTML for the new futuristic loader.
+        // We inject this directly into the target page so it masks the document.write() flash!
+        const loaderOverlayDOM = `
+        <style>
+          #seamless-loader-overlay {
+            position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+            background: radial-gradient(circle, #1a1a1a 0%, #050505 100%) !important;
+            z-index: 2147483647 !important;
+            display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important;
+            transition: opacity 1.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+            pointer-events: none !important; margin: 0 !important; padding: 0 !important;
+          }
+          .cool-spinner { position: relative !important; width: 120px !important; height: 120px !important; margin-bottom: 40px !important; }
+          .cool-spinner div {
+            position: absolute !important; box-sizing: border-box !important; border-radius: 50% !important; border: 4px solid transparent !important;
+            animation: ring-spin 2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite !important;
+          }
+          .cool-spinner div:nth-child(1) { width: 100% !important; height: 100% !important; top: 0 !important; left: 0 !important; border-top-color: #ff4757 !important; border-bottom-color: #ff6b81 !important; }
+          .cool-spinner div:nth-child(2) { width: 80% !important; height: 80% !important; top: 10% !important; left: 10% !important; border-left-color: #6e8efb !important; border-right-color: #a777e3 !important; animation-direction: reverse !important; animation-duration: 1.5s !important; }
+          .cool-spinner div:nth-child(3) { width: 60% !important; height: 60% !important; top: 20% !important; left: 20% !important; border-top-color: #ffffff !important; animation-duration: 1s !important; }
+          @keyframes ring-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          .loader-text {
+            font-family: 'Segoe UI', Tahoma, sans-serif !important; font-size: 1.8rem !important; font-weight: 800 !important; letter-spacing: 6px !important;
+            text-transform: uppercase !important; background: linear-gradient(90deg, #ff4757, #6e8efb) !important;
+            -webkit-background-clip: text !important; color: transparent !important;
+            animation: pulse-glow 2s infinite alternate !important;
+          }
+          @keyframes pulse-glow { 0% { filter: drop-shadow(0 0 5px rgba(255,71,87,0.4)); } 100% { filter: drop-shadow(0 0 20px rgba(110,142,251,0.8)); } }
+        </style>
+        <div id="seamless-loader-overlay">
+          <div class="cool-spinner"><div></div><div></div><div></div></div>
+          <div class="loader-text" id="dynamic-loader-text">LOADING...</div>
+        </div>
+        `;
 
+        // This script is injected to smoothly fade out the loader once the new page is ready
+        const loaderScript = `
+        <script>
+          window.addEventListener('load', function() {
+            setTimeout(function() {
+              var overlay = document.getElementById('seamless-loader-overlay');
+              if(overlay) { overlay.style.opacity = '0'; setTimeout(function() { overlay.remove(); }, 1200); }
+            }, 600);
+          });
+          // Fallback if window.load already fired
+          setTimeout(function() {
+            var overlay = document.getElementById('seamless-loader-overlay');
+            if(overlay && overlay.style.opacity !== '0') { overlay.style.opacity = '0'; setTimeout(function() { overlay.remove(); }, 1200); }
+          }, 4000);
+        <\/script>
+        `;
+
+        // The core logic to open a seamless cloaked window without glitches
+        function openSeamlessWindow(htmlContent, loadingMsg) {
+            var newWindow = window.open('about:blank', '_blank');
+            if(!newWindow) return alert("Popup blocked! Allow popups.");
+
+            // 1. Immediately show the loader in the blank tab so there's no white screen delay
+            var customLoaderDOM = loaderOverlayDOM.replace('LOADING...', loadingMsg);
+            var initialHtml = '<!DOCTYPE html><html><head><title>Loading...</title></head><body style="margin:0; background:#050505;">' + customLoaderDOM + '</body></html>';
+            newWindow.document.write(initialHtml);
+
+            // 2. Inject the EXACT same loader and transition script into the fetched game HTML
+            var finalHtml = htmlContent;
+            var injection = customLoaderDOM + loaderScript;
+            
+            // Insert right after <head> or <body> tags
+            if (finalHtml.match(/<body[^>]*>/i)) {
+                finalHtml = finalHtml.replace(/(<body[^>]*>)/i, '$1' + injection);
+            } else if (finalHtml.includes('</head>')) {
+                finalHtml = finalHtml.replace('</head>', '</head>' + injection);
+            } else {
+                finalHtml = injection + finalHtml; // Fallback
+            }
+
+            // 3. Wait a moment so the loader animation looks good, then overwrite the document.
+            // Because the new document has the EXACT same full-screen loader on top, there is ZERO visual glitch!
+            setTimeout(function() {
+                newWindow.document.open();
+                newWindow.document.write(finalHtml);
+                newWindow.document.close();
+                
+                // If we cloned the dashboard, destroy the splash screen in the new window
+                setTimeout(function() {
+                    var clonedSplash = newWindow.document.getElementById('splash-screen');
+                    if (clonedSplash) clonedSplash.remove();
+                }, 50);
+            }, 1200);
+        }
+
+        // ==========================================
+        // LAUNCH TRIGGERS
+        // ==========================================
+
+        document.getElementById('launch-app-btn').addEventListener('click', function() {
+            var fullDashboardHTML = '<!DOCTYPE html>' + document.documentElement.outerHTML;
+            openSeamlessWindow(fullDashboardHTML,  'please wait');
+        });
+
+        var gameButtons = document.querySelectorAll('.game-btn');
         gameButtons.forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var gameUrl = btn.getAttribute('data-url');
-                var gameTitle = btn.innerText;
-
-                // 1. Open a blank tab immediately (prevents popup blockers)
-                var newWindow = window.open('about:blank', '_blank');
+                var cachedHtml = localStorage.getItem('cache_' + gameUrl);
                 
-                if (newWindow) {
-                    // Set loading placeholder text inside the new tab
-                    newWindow.document.write('<html><head><title>Loading...</title></head><body style="background:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>LOADING GAME...</h1></body></html>');
+                if (cachedHtml) {
+                    openSeamlessWindow(cachedHtml, 'LAUNCHING GAME...');
+                } else {
+                    // Open window with loader first while we wait for fetch
+                    var newWindow = window.open('about:blank', '_blank');
+                    if(!newWindow) return;
+                    
+                    var customLoaderDOM = loaderOverlayDOM.replace('LOADING...', 'FETCHING DATA...');
+                    newWindow.document.write('<!DOCTYPE html><html><head><title>Loading...</title></head><body style="margin:0; background:#050505;">' + customLoaderDOM + '</body></html>');
 
-                    // 2. Fetch the jsDelivr code behind the scenes
                     fetch(gameUrl)
-                        .then(function(response) {
-                            if (!response.ok) throw new Error("Network response was not ok");
-                            return response.text();
+                        .then(r => r.text())
+                        .then(htmlCode => {
+                            localStorage.setItem('cache_' + gameUrl, htmlCode);
+                            
+                            var finalHtml = htmlCode;
+                            var injection = customLoaderDOM.replace('FETCHING DATA...', 'LAUNCHING GAME...') + loaderScript;
+                            
+                            if (finalHtml.match(/<body[^>]*>/i)) {
+                                finalHtml = finalHtml.replace(/(<body[^>]*>)/i, '$1' + injection);
+                            } else {
+                                finalHtml = injection + finalHtml; 
+                            }
+                            
+                            setTimeout(() => {
+                                newWindow.document.open();
+                                newWindow.document.write(finalHtml);
+                                newWindow.document.close();
+                            }, 800);
                         })
-                        .then(function(htmlCode) {
-                            // 3. Write fetched HTML code to the new tab document
+                        .catch(err => {
                             newWindow.document.open();
-                            newWindow.document.write(htmlCode);
+                            newWindow.document.write('<body style="background:black;color:red;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>FAILED TO LOAD GAME</h1></body>');
                             newWindow.document.close();
-                        })
-                        .catch(function(error) {
-                            newWindow.document.open();
-                            newWindow.document.write('<html><head><title>Error</title></head><body style="background:black;color:red;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>FAILED TO LOAD GAME</h1></body></html>');
-                            newWindow.document.close();
-                            console.error('Error fetching game:', error);
                         });
                 }
             });
         });
 
-        // --- Search Logic ---
+        // ==========================================
+        // UI AND EFFECTS
+        // ==========================================
+
+        var bgAudio = document.getElementById('bg-audio');
+        document.body.addEventListener('click', function() {
+            if (bgAudio.paused) bgAudio.play().catch(e => {});
+        }, { once: true });
+
         function filterGames() {
             var query = document.getElementById('searchBar').value.toLowerCase();
             gameButtons.forEach(function(btn) {
-                var text = btn.innerText.toLowerCase();
-                if (text.includes(query)) {
-                    btn.style.display = "block";
-                } else {
-                    btn.style.display = "none";
-                }
+                btn.style.display = btn.innerText.toLowerCase().includes(query) ? "block" : "none";
             });
         }
 
-        // --- Settings & Background Logic ---
-        var currentSnowPng = 'https://u1.padletusercontent.com/uploads/padlet-uploads-usc1/6025350127/5424aa1b264efc04736207b1efafc93f/snowflake_1077428_1280_cropped.png?token=zkjcbrcnIjtmrp4o92YIz6Fh2y_gQSna4u1cboFB25wcSaGToZQHHN_kgKhUyleZX0mc3rh0iWrsLefr7lGG15SAv-dBQuBusVwLLtrrMVo4smzk2q34wIM-1MCXhFKSBUrPKrj8IYbKtgjTfNO7zEyk00IYLcqKaYWRICR620Fx6fJjtH4nz8v2tNCW2uQ6crqLCsmpBdsvUz3mGPalBqeVcQB2mA4Cc-6qt5dmR9Bf_pTnbuXcNxxTWiVZEOyhh0j-gctwnjVZ4KGPWOv_wA=='; 
         var settingsMenu = document.getElementById('settings-menu');
-        
-        function toggleSettings(show) {
-            settingsMenu.style.display = show ? 'block' : 'none';
-        }
+        function toggleSettings(show) { settingsMenu.style.display = show ? 'block' : 'none'; }
+
+        var currentSnowPng = 'https://u1.padletusercontent.com/uploads/padlet-uploads-usc1/6025350127/5424aa1b264efc04736207b1efafc93f/snowflake_1077428_1280_cropped.png?token=zkjcbrcnIjtmrp4o92YIz6Fh2y_gQSna4u1cboFB25wcSaGToZQHHN_kgKhUyleZX0mc3rh0iWrsLefr7lGG15SAv-dBQuBusVwLLtrrMVo4smzk2q34wIM-1MCXhFKSBUrPKrj8IYbKtgjTfNO7zEyk00IYLcqKaYWRICR620Fx6fJjtH4nz8v2tNCW2uQ6crqLCsmpBdsvUz3mGPalBqeVcQB2mA4Cc-6qt5dmR9Bf_pTnbuXcNxxTWiVZEOyhh0j-gctwnjVZ4KGPWOv_wA==';
+        var videoBackground = document.getElementById('video-background');
 
         function saveSettings() {
             var bgUrl = document.getElementById('bg-input').value;
             var snowUrl = document.getElementById('snow-input').value;
+            var audioFileInput = document.getElementById('audio-file-input');
 
             if (bgUrl.trim() !== "") {
                 if (bgUrl.toLowerCase().endsWith('.mp4') || bgUrl.toLowerCase().endsWith('.webm')) {
@@ -314,37 +538,32 @@
                     videoBackground.style.display = 'none';
                 }
             }
-            if (snowUrl.trim() !== "") {
-                currentSnowPng = snowUrl;
+            if (snowUrl.trim() !== "") currentSnowPng = snowUrl;
+            if (audioFileInput.files && audioFileInput.files[0]) {
+                bgAudio.src = URL.createObjectURL(audioFileInput.files[0]);
+                bgAudio.play().catch(e => {});
             }
             toggleSettings(false);
         }
 
-        // --- Particle Spawner ---
         function spawnSnowflake() {
             var container = document.getElementById('snow-container');
             var flake = document.createElement('img');
-            
             flake.src = currentSnowPng;
             flake.classList.add('snowflake');
-            
             flake.style.left = Math.random() * 100 + 'vw';
             var size = (Math.random() * 15 + 15) + 'px'; 
-            flake.style.width = size;
-            flake.style.height = size;
-            flake.style.animationDuration = Math.random() * 3 + 4 + 's'; 
-            
+            flake.style.width = size; flake.style.height = size;
+            flake.style.animationDuration = Math.random() * 4 + 6 + 's'; // Slower, cooler fall
             container.appendChild(flake);
-            
-            setTimeout(function() {
-                flake.remove();
-            }, 7000); 
+            setTimeout(function() { flake.remove(); }, 10000); 
         }
 
         if (!window.snowIntervalStarted) {
-            setInterval(spawnSnowflake, 300);
+            setInterval(spawnSnowflake, 400);
             window.snowIntervalStarted = true;
         }
     </script>
 </body>
+
 </html>
