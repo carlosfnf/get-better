@@ -1,0 +1,561 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+    <foreignObject width="100%" height="100%">
+        <html xmlns="http://www.w3.org/1999/xhtml">
+
+        <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Welcome</title>
+            <style>
+                /*<![CDATA[*/
+                /* Base Styles */
+                body,
+                html {
+                    margin: 0;
+                    padding: 0;
+                    width: 100%;
+                    height: 100%;
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    background-color: #050505;
+                    color: white;
+                    overflow: hidden;
+                    transition: background 0.5s ease;
+                }
+
+                /* Video Background */
+                #video-background {
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    min-width: 100%;
+                    min-height: 100%;
+                    width: auto;
+                    height: auto;
+                    z-index: 0;
+                    transform: translate(-50%, -50%);
+                    object-fit: cover;
+                    transition: opacity 0.8s ease;
+                }
+
+                /* Falling Snow Container */
+                #snow-container {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                    z-index: 1;
+                }
+
+                .snowflake {
+                    position: absolute;
+                    top: -50px;
+                    opacity: 0.8;
+                    animation: fall linear forwards;
+                    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+                }
+
+                @keyframes fall {
+                    0% {
+                        transform: translateY(-10vh) translateX(0) rotate(0deg);
+                    }
+
+                    50% {
+                        transform: translateY(50vh) translateX(25px) rotate(180deg);
+                    }
+
+                    100% {
+                        transform: translateY(110vh) translateX(-25px) rotate(360deg);
+                    }
+                }
+
+                /* Splash Screen Overlay */
+                #splash-screen {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(5, 5, 5, 0.9);
+                    backdrop-filter: blur(15px);
+                    z-index: 1000;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    transition: opacity 0.5s ease;
+                }
+
+                .launch-btn {
+                    position: relative;
+                    padding: 25px 60px;
+                    font-size: 2rem;
+                    font-weight: 800;
+                    color: white;
+                    background: linear-gradient(135deg, #ff4757, #ff6b81);
+                    border: none;
+                    border-radius: 50px;
+                    cursor: pointer;
+                    overflow: hidden;
+                    box-shadow: 0 0 20px rgba(255, 71, 87, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.2);
+                    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+                }
+
+                .launch-btn::after,
+                .game-btn::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 50%;
+                    height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+                    transform: skewX(-20deg);
+                    transition: 0.5s;
+                }
+
+                .launch-btn:hover::after,
+                .game-btn:hover::after {
+                    left: 150%;
+                }
+
+                .launch-btn:hover {
+                    transform: translateY(-5px) scale(1.05);
+                    box-shadow: 0 15px 40px rgba(255, 71, 87, 0.7);
+                }
+
+                /* Main UI */
+                .ui-container {
+                    position: relative;
+                    z-index: 10;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.3);
+                    backdrop-filter: blur(8px);
+                }
+
+                h1.neon-title {
+                    font-size: 4.5rem;
+                    margin-bottom: 20px;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    background: linear-gradient(to right, #ff4757, #ff6b81, #6e8efb, #a777e3, #ff4757);
+                    background-size: 300% 100%;
+                    -webkit-background-clip: text;
+                    color: transparent;
+                    animation: bg-shift 6s linear infinite;
+                    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.2));
+                }
+
+                @keyframes bg-shift {
+                    0% {
+                        background-position: 0% 50%;
+                    }
+
+                    100% {
+                        background-position: 100% 50%;
+                    }
+                }
+
+                .search-bar {
+                    padding: 18px 30px;
+                    width: 450px;
+                    border-radius: 40px;
+                    border: 2px solid rgba(255, 255, 255, 0.1);
+                    outline: none;
+                    font-size: 1.2rem;
+                    background: rgba(255, 255, 255, 0.1);
+                    color: white;
+                    backdrop-filter: blur(10px);
+                    margin-bottom: 50px;
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                    transition: all 0.3s ease;
+                }
+
+                .search-bar:focus {
+                    background: rgba(255, 255, 255, 0.2);
+                    border-color: #6e8efb;
+                    box-shadow: 0 0 20px rgba(110, 142, 251, 0.4);
+                    transform: scale(1.02);
+                }
+
+                .buttons-grid {
+                    display: flex;
+                    gap: 20px;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    max-width: 900px;
+                }
+
+                .game-btn {
+                    position: relative;
+                    padding: 20px 40px;
+                    font-size: 1.2rem;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    color: white;
+                    background: linear-gradient(135deg, #6e8efb, #a777e3);
+                    border: none;
+                    border-radius: 20px;
+                    cursor: pointer;
+                    overflow: hidden;
+                    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+                    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+                }
+
+                .game-btn:hover {
+                    transform: translateY(-8px);
+                    box-shadow: 0 15px 30px rgba(110, 142, 251, 0.6);
+                }
+
+                .settings-btn {
+                    position: absolute;
+                    top: 30px;
+                    right: 30px;
+                    background: rgba(255, 255, 255, 0.1);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    color: white;
+                    padding: 12px 25px;
+                    border-radius: 30px;
+                    cursor: pointer;
+                    font-size: 1.1rem;
+                    backdrop-filter: blur(5px);
+                    transition: all 0.3s ease;
+                }
+
+                .settings-btn:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                    transform: rotate(5deg) scale(1.05);
+                }
+
+                #settings-menu {
+                    display: none;
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(20, 20, 20, 0.95);
+                    padding: 40px;
+                    border-radius: 25px;
+                    z-index: 100;
+                    width: 380px;
+                    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                }
+
+                .setting-group {
+                    display: flex;
+                    flex-direction: column;
+                    margin-bottom: 25px;
+                }
+
+                .setting-group input {
+                    padding: 12px;
+                    margin-top: 8px;
+                    border-radius: 10px;
+                    border: none;
+                    background: #333;
+                    color: white;
+                    outline: none;
+                    transition: background 0.3s;
+                }
+
+                .setting-group input:focus {
+                    background: #444;
+                    box-shadow: 0 0 10px rgba(255, 71, 87, 0.3);
+                }
+
+                .close-btn {
+                    background: linear-gradient(135deg, #ff4757, #ff6b81);
+                    color: white;
+                    border: none;
+                    padding: 15px;
+                    width: 100%;
+                    border-radius: 10px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    font-size: 1.1rem;
+                    transition: transform 0.2s;
+                }
+
+                .close-btn:hover {
+                    transform: scale(1.02);
+                }
+
+                /*]]>*/
+            </style>
+        </head>
+
+        <body>
+            <!-- Splash Screen -->
+            <div id="splash-screen">
+                <h1 class="neon-title" style="font-size: 3.5rem; margin-bottom: 40px;">BE BETTER</h1>
+                <button class="launch-btn" id="launch-app-btn">LAUNCH DASHBOARD</button>
+            </div>
+
+            <!-- Background Audio -->
+            <audio id="bg-audio" loop="loop"></audio>
+
+            <!-- Video Background -->
+            <video autoplay="autoplay" muted="muted" loop="loop" playsinline="playsinline" id="video-background">
+                <source src="https://motionbgs.com/media/758/mountain-landscape-in-autumn.960x540.mp4"
+                    type="video/mp4" />
+            </video>
+
+            <!-- Falling Particle Container -->
+            <div id="snow-container"></div>
+
+            <!-- Main Interface -->
+            <div class="ui-container" id="main-ui">
+                <button class="settings-btn" onclick="toggleSettings(true)">⚙️ Options</button>
+                <h1 class="neon-title">BE BETTER Nigeria reborn</h1>
+                <input type="text" id="searchBar" class="search-bar" placeholder="Search quick access games..." onkeyup="filterGames()" />
+                <div class="buttons-grid" id="game-buttons">
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/GM.html">GN-math</button>
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/EGP.html">EGP</button>
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/MC1.8.html">Minecraft</button>
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RB.html">Retrobowl</button>
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RBC.html">Retrobowl College</button>
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/TOTM.html">TOTM</button>
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/soundboard.html">Soundboard</button>
+                </div>
+            </div>
+
+            <!-- Settings Menu -->
+            <div id="settings-menu">
+                <h2 style="margin-top: 0; color: #ff4757;">Options</h2>
+                <div class="setting-group">
+                    <label>Background URL (Image/MP4):</label>
+                    <input type="text" id="bg-input" placeholder="Paste link here..." />
+                </div>
+                <div class="setting-group">
+                    <label>Falling PNG URL (Snowflake):</label>
+                    <input type="text" id="snow-input" placeholder="Paste PNG URL here..." />
+                </div>
+                <div class="setting-group">
+                    <label>Local Song File (MP3/WAV):</label>
+                    <input type="file" id="audio-file-input" accept="audio/*" />
+                </div>
+                <button class="close-btn" onclick="saveSettings()">Save &amp; Close</button>
+            </div>
+
+            <script>
+                //<![CDATA[
+                    // ==========================================
+                    // SEAMLESS FADE ENGINE
+                    // ==========================================
+                    const loaderOverlayDOM = `
+                    <style> 
+                        #seamless-loader-overlay { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%) !important; z-index: 2147483647 !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; transition: opacity 1.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important; pointer-events: none !important; margin: 0 !important; padding: 0 !important; } 
+                        .cool-spinner { position: relative !important; width: 120px !important; height: 120px !important; margin-bottom: 40px !important; } 
+                        .cool-spinner div { position: absolute !important; box-sizing: border-box !important; border-radius: 50% !important; border: 4px solid transparent !important; animation: ring-spin 2s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite !important; } 
+                        .cool-spinner div:nth-child(1) { width: 100% !important; height: 100% !important; top: 0 !important; left: 0 !important; border-top-color: #ff4757 !important; border-bottom-color: #ff6b81 !important; } 
+                        .cool-spinner div:nth-child(2) { width: 80% !important; height: 80% !important; top: 10% !important; left: 10% !important; border-left-color: #6e8efb !important; border-right-color: #a777e3 !important; animation-direction: reverse !important; animation-duration: 1.5s !important; } 
+                        .cool-spinner div:nth-child(3) { width: 60% !important; height: 60% !important; top: 20% !important; left: 20% !important; border-top-color: #ffffff !important; animation-duration: 1s !important; } 
+                        @keyframes ring-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } 
+                        .loader-text { font-family: 'Segoe UI', Tahoma, sans-serif !important; font-size: 1.8rem !important; font-weight: 800 !important; letter-spacing: 6px !important; text-transform: uppercase !important; background: linear-gradient(90deg, #ff4757, #6e8efb) !important; -webkit-background-clip: text !important; color: transparent !important; animation: pulse-glow 2s infinite alternate !important; } 
+                        @keyframes pulse-glow { 0% { filter: drop-shadow(0 0 5px rgba(255,71,87,0.4)); } 100% { filter: drop-shadow(0 0 20px rgba(110,142,251,0.8)); } } 
+                    </style> 
+                    <div id="seamless-loader-overlay"> 
+                        <div class="cool-spinner"><div></div><div></div><div></div></div> 
+                        <div class="loader-text" id="dynamic-loader-text">LOADING...</div> 
+                    </div>`; 
+
+                    const loaderScript = `
+                    <script> 
+                        window.addEventListener('load', function() { 
+                            setTimeout(function() { 
+                                var overlay = document.getElementById('seamless-loader-overlay'); 
+                                if(overlay) { 
+                                    overlay.style.opacity = '0'; 
+                                    setTimeout(function() { overlay.remove(); }, 1200); 
+                                } 
+                            }, 600); 
+                        }); 
+                        setTimeout(function() { 
+                            var overlay = document.getElementById('seamless-loader-overlay'); 
+                            if(overlay && overlay.style.opacity !== '0') { 
+                                overlay.style.opacity = '0'; 
+                                setTimeout(function() { overlay.remove(); }, 1200); 
+                            } 
+                        }, 4000); 
+                    <\/script>`;
+
+                    function openSeamlessWindow(htmlContent, loadingMsg) {
+                        var newWindow = window.open('about:blank', '_blank');
+                        if(!newWindow) {
+                            alert("Popup blocked! Please allow popups for this site.");
+                            return;
+                        }
+
+                        var customLoaderDOM = loaderOverlayDOM.replace('LOADING...', loadingMsg);
+                        var initialHtml = '<!DOCTYPE html><html><head><title>Loading...</title></head><body style="margin:0; background:#050505;">' + customLoaderDOM + '</body></html>';
+                        newWindow.document.write(initialHtml);
+
+                        var finalHtml = htmlContent;
+                        var injection = customLoaderDOM + loaderScript;
+
+                        if (finalHtml.match(/<body[^>]*>/i)) {
+                            finalHtml = finalHtml.replace(/(<body[^>]*>)/i, '$1' + injection);
+                        } else if (finalHtml.includes('</head>')) {
+                            finalHtml = finalHtml.replace('</head>', '</head>' + injection);
+                        } else {
+                            finalHtml = injection + finalHtml; 
+                        }
+
+                        setTimeout(function() {
+                            newWindow.document.open();
+                            newWindow.document.write(finalHtml);
+                            newWindow.document.close();
+                            
+                            setTimeout(function() {
+                                var clonedSplash = newWindow.document.getElementById('splash-screen');
+                                if (clonedSplash) clonedSplash.remove();
+                            }, 50);
+                        }, 1200);
+                    }
+
+                    // ==========================================
+                    // LAUNCH TRIGGERS
+                    // ==========================================
+                    document.getElementById('launch-app-btn').addEventListener('click', function() {
+                        var splash = document.getElementById('splash-screen');
+                        splash.style.opacity = '0';
+                        setTimeout(() => { splash.style.display = 'none'; }, 500);
+
+                        // Use querySelector('html') so we extract purely standard HTML, dropping the SVG wrapper for the popup
+                        var fullDashboardHTML = '<!DOCTYPE html>\n' + document.querySelector('html').outerHTML;
+                        openSeamlessWindow(fullDashboardHTML, 'PLEASE WAIT');
+                    });
+
+                    var gameButtons = document.querySelectorAll('.game-btn');
+                    gameButtons.forEach(function(btn) {
+                        btn.addEventListener('click', function() {
+                            var gameUrl = btn.getAttribute('data-url');
+                            var cachedHtml = localStorage.getItem('cache_' + gameUrl);
+                            
+                            var baseUrlPath = gameUrl.substring(0, gameUrl.lastIndexOf('/') + 1);
+                            var baseTag = `<base href="${baseUrlPath}">`;
+
+                            if (cachedHtml) {
+                                openSeamlessWindow(baseTag + cachedHtml, 'LAUNCHING GAME...');
+                            } else {
+                                var newWindow = window.open('about:blank', '_blank');
+                                if(!newWindow) return alert("Popup blocked! Allow popups.");
+
+                                var customLoaderDOM = loaderOverlayDOM.replace('LOADING...', 'FETCHING DATA...');
+                                newWindow.document.write('<!DOCTYPE html><html><head><title>Loading...</title></head><body style="margin:0; background:#050505;">' + customLoaderDOM + '</body></html>');
+                                
+                                fetch(gameUrl)
+                                    .then(r => r.text())
+                                    .then(htmlCode => {
+                                        localStorage.setItem('cache_' + gameUrl, htmlCode);
+                                        var finalHtml = htmlCode;
+                                        var injection = customLoaderDOM.replace('FETCHING DATA...', 'LAUNCHING GAME...') + loaderScript;
+                                        
+                                        if (finalHtml.includes('<head>')) {
+                                            finalHtml = finalHtml.replace('<head>', '<head>' + baseTag);
+                                        }
+
+                                        if (finalHtml.match(/<body[^>]*>/i)) {
+                                            finalHtml = finalHtml.replace(/(<body[^>]*>)/i, '$1' + injection);
+                                        } else {
+                                            finalHtml = injection + finalHtml;
+                                        }
+
+                                        setTimeout(() => {
+                                            newWindow.document.open();
+                                            newWindow.document.write(finalHtml);
+                                            newWindow.document.close();
+                                        }, 800);
+                                    })
+                                    .catch(err => {
+                                        newWindow.document.open();
+                                        newWindow.document.write('<body style="background:black;color:red;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>FAILED TO LOAD GAME</h1></body>');
+                                        newWindow.document.close();
+                                    });
+                            }
+                        });
+                    });
+
+                    // ==========================================
+                    // UI AND EFFECTS
+                    // ==========================================
+                    var bgAudio = document.getElementById('bg-audio');
+                    document.body.addEventListener('click', function() {
+                        if (bgAudio.src && bgAudio.paused) bgAudio.play().catch(e => {});
+                    }, { once: true });
+
+                    function filterGames() {
+                        var query = document.getElementById('searchBar').value.toLowerCase();
+                        gameButtons.forEach(function(btn) {
+                            btn.style.display = btn.innerText.toLowerCase().includes(query) ? "block" : "none";
+                        });
+                    }
+
+                    var settingsMenu = document.getElementById('settings-menu');
+                    function toggleSettings(show) {
+                        settingsMenu.style.display = show ? 'block' : 'none';
+                    }
+
+                    var currentSnowPng = 'https://u1.padletusercontent.com/uploads/padlet-uploads-usc1/6025350127/5424aa1b264efc04736207b1efafc93f/snowflake_1077428_1280_cropped.png?token=zkjcbrcnIjtmrp4o92YIz6Fh2y_gQSna4u1cboFB25wcSaGToZQHHN_kgKhUyleZX0mc3rh0iWrsLefr7lGG15SAv-dBQuBusVwLLtrrMVo4smzk2q34wIM-1MCXhFKSBUrPKrj8IYbKtgjTfNO7zEyk00IYLcqKaYWRICR620Fx6fJjtH4nz8v2tNCW2uQ6crqLCsmpBdsvUz3mGPalBqeVcQB2mA4Cc-6qt5dmR9Bf_pTnbuXcNxxTWiVZEOyhh0j-gctwnjVZ4KGPWOv_wA==';
+                    var videoBackground = document.getElementById('video-background');
+                    
+                    function saveSettings() {
+                        var bgUrl = document.getElementById('bg-input').value;
+                        var snowUrl = document.getElementById('snow-input').value;
+                        var audioFileInput = document.getElementById('audio-file-input');
+                        
+                        if (bgUrl.trim() !== "") {
+                            if (bgUrl.toLowerCase().endsWith('.mp4') || bgUrl.toLowerCase().endsWith('.webm')) {
+                                videoBackground.src = bgUrl;
+                                videoBackground.style.display = 'block';
+                                document.body.style.backgroundImage = 'none';
+                            } else {
+                                document.body.style.backgroundImage = 'url("' + bgUrl + '")';
+                                document.body.style.backgroundSize = 'cover';
+                                document.body.style.backgroundPosition = 'center';
+                                videoBackground.style.display = 'none';
+                            }
+                        }
+                        if (snowUrl.trim() !== "") currentSnowPng = snowUrl;
+                        
+                        if (audioFileInput.files && audioFileInput.files[0]) {
+                            bgAudio.src = URL.createObjectURL(audioFileInput.files[0]);
+                            bgAudio.play().catch(e => {});
+                        }
+                        toggleSettings(false);
+                    }
+
+                    function spawnSnowflake() {
+                        var container = document.getElementById('snow-container');
+                        var flake = document.createElement('img');
+                        flake.src = currentSnowPng;
+                        flake.classList.add('snowflake');
+                        flake.style.left = Math.random() * 100 + 'vw';
+                        var size = (Math.random() * 15 + 15) + 'px';
+                        flake.style.width = size;
+                        flake.style.height = size;
+                        flake.style.animationDuration = Math.random() * 4 + 6 + 's';
+                        container.appendChild(flake);
+                        setTimeout(function() {
+                            flake.remove();
+                        }, 10000);
+                    }
+
+                    if (!window.snowIntervalStarted) {
+                        setInterval(spawnSnowflake, 400);
+                        window.snowIntervalStarted = true;
+                    }
+                    //]]>
+            </script>
+        </body>
+
+        </html>
+    </foreignObject>
+</svg>
