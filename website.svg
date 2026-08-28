@@ -230,7 +230,10 @@
                     }
                 }
 
-                /* ============ TITLES ============ */
+                /* ============ TITLES ============
+                       Gradient text is applied ONLY when JS detects support
+                       (adds body.grad-text). No @supports rule — strict
+                       validators reject it. Fallback = clean white letters. */
                 h1.neon-title {
                     font-size: 4.5rem;
                     margin: 0 0 14px;
@@ -283,29 +286,27 @@
                     }
                 }
 
-                @supports ((-webkit-background-clip: text) or (background-clip: text)) {
-                    .ltr {
-                        background-image: linear-gradient(90deg, #ff4757, #ff6b81, #6e8efb, #a777e3, #ff4757);
-                        background-size: 200% 100%;
-                        -webkit-background-clip: text;
-                        background-clip: text;
-                        -webkit-text-fill-color: transparent;
-                        color: transparent;
-                        animation-name: ltr-wave;
-                        animation-duration: 3.2s;
-                        animation-timing-function: linear;
-                        animation-iteration-count: infinite;
-                    }
+                body.grad-text .ltr {
+                    background-image: linear-gradient(90deg, #ff4757, #ff6b81, #6e8efb, #a777e3, #ff4757);
+                    background-size: 200% 100%;
+                    -webkit-background-clip: text;
+                    background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    color: transparent;
+                    animation-name: ltr-wave;
+                    animation-duration: 3.2s;
+                    animation-timing-function: linear;
+                    animation-iteration-count: infinite;
+                }
 
-                    .splash-title .ltr,
-                    body.ui-in .main-title .ltr {
-                        animation-name: ltr-in, ltr-wave;
-                        animation-duration: 0.85s, 3.2s;
-                        animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), linear;
-                        animation-delay: var(--d, 0ms), calc(var(--i, 0) * -0.2s);
-                        animation-iteration-count: 1, infinite;
-                        animation-fill-mode: backwards, none;
-                    }
+                body.grad-text .splash-title .ltr,
+                body.grad-text.ui-in .main-title .ltr {
+                    animation-name: ltr-in, ltr-wave;
+                    animation-duration: 0.85s, 3.2s;
+                    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1), linear;
+                    animation-delay: var(--d, 0ms), calc(var(--i, 0) * -0.2s);
+                    animation-iteration-count: 1, infinite;
+                    animation-fill-mode: backwards, none;
                 }
 
                 @keyframes ltr-wave {
@@ -776,9 +777,8 @@
                     transform: scale(0.97);
                 }
 
-                .launch-btn::after,
-                .game-btn::after {
-                    content: '';
+                /* ============ SHINE (real element — no pseudo-elements) ============ */
+                .shine {
                     position: absolute;
                     top: 0;
                     left: -100%;
@@ -787,13 +787,14 @@
                     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .4), transparent);
                     transform: skewX(-20deg);
                     transition: left 0.5s;
+                    pointer-events: none;
                 }
 
-                .game-btn:hover::after {
+                .game-btn:hover .shine {
                     left: 150%;
                 }
 
-                .launch-btn::after {
+                .launch-btn .shine {
                     animation: auto-shine 5s ease-in-out infinite;
                 }
 
@@ -853,12 +854,18 @@
                     transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
                 }
 
-                body.ui-in .search-bar:not(.entered) {
+                body.ui-in .search-bar {
                     animation-name: rise-in;
                     animation-duration: 0.8s;
                     animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
                     animation-delay: 1s;
                     animation-fill-mode: backwards;
+                }
+
+                /* .entered is added by JS when the entrance finishes, so the
+                       entrance never re-runs on blur, and :focus can take over */
+                body.ui-in .search-bar.entered {
+                    animation: none;
                 }
 
                 .search-bar:focus {
@@ -868,7 +875,7 @@
                     transform: scale(1.02);
                 }
 
-                .search-bar.entered:focus {
+                body.ui-in .search-bar.entered:focus {
                     animation: focus-glow 2.4s ease-in-out infinite;
                 }
 
@@ -1231,17 +1238,6 @@
                     }
                 }
 
-                @media (prefers-reduced-motion: reduce) {
-
-                    *,
-                    *::before,
-                    *::after {
-                        animation-duration: 0.01ms !important;
-                        animation-iteration-count: 1 !important;
-                        transition-duration: 0.01ms !important;
-                    }
-                }
-
                 /*]]>*/
             </style>
         </head>
@@ -1256,7 +1252,7 @@
                     <input type="text" id="gate-input" inputmode="numeric" autocomplete="off" placeholder="•••" maxlength="10" />
                     <button type="button" id="gate-submit">Unlock</button>
                     <div class="gate-status" id="gate-status"></div>
-                    <div class="gate-hint">One ID per person &middot; do not share</div>
+                    <div class="gate-hint">One ID per person &#183; do not share</div>
                 </div>
             </div>
 
@@ -1299,6 +1295,7 @@
                 <div class="buttons-grid" id="game-buttons">
                     <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/GM.html">GN-math</button>
                     <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/EGP.html">EGP</button>
+                    <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/MC1.8.html">Minecraft</button>
                 </div>
             </div>
 
@@ -1348,7 +1345,25 @@
                     var KEY_LIST_TTL  = 24 * 60 * 60 * 1000; // refresh cached key lists daily
 
                     /* ================================================================
-                       SEAMLESS LOADER
+                       GRADIENT TEXT DETECTION (replaces the @supports rule, which
+                       strict CSS validators reject). If supported, body gets the
+                       .grad-text class and the titles use the rainbow gradient;
+                       otherwise they stay clean white — never invisible.
+                    ================================================================ */
+                    (function detectGradientText() {
+                        try {
+                            var d = document.createElement('div');
+                            d.style.backgroundClip = 'text';
+                            d.style.webkitBackgroundClip = 'text';
+                            if (d.style.backgroundClip === 'text' || d.style.webkitBackgroundClip === 'text') {
+                                document.body.classList.add('grad-text');
+                            }
+                        } catch (e) {}
+                    })();
+
+                    /* ================================================================
+                       SEAMLESS LOADER (plain white glowing text — no gradient-clip,
+                       no @supports, no pseudo-elements anywhere)
                     ================================================================ */
                     const loaderOverlayDOM = `
                     <style>
@@ -1359,27 +1374,16 @@
                         .cool-spinner div:nth-child(2) { width: 80% !important; height: 80% !important; top: 10% !important; left: 10% !important; border-left-color: #6e8efb !important; border-right-color: #a777e3 !important; animation-direction: reverse !important; animation-duration: 1.5s !important; }
                         .cool-spinner div:nth-child(3) { width: 60% !important; height: 60% !important; top: 20% !important; left: 20% !important; border-top-color: #ffffff !important; animation-duration: 1s !important; }
                         @keyframes ring-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                        .loader-text { font-family: 'Segoe UI', Tahoma, sans-serif !important; font-size: 1.8rem !important; font-weight: 800 !important; letter-spacing: 6px !important; text-transform: uppercase !important; color: #fff !important; text-shadow: 0 0 18px rgba(110,142,251,.65) !important; animation: loader-in .6s .15s both !important; }
-                        @supports ((-webkit-background-clip: text) or (background-clip: text)) {
-                            .loader-text {
-                                background-image: linear-gradient(90deg, #ff4757, #a777e3, #6e8efb, #ff4757) !important;
-                                background-size: 200% auto !important;
-                                -webkit-background-clip: text !important; background-clip: text !important;
-                                -webkit-text-fill-color: transparent !important; color: transparent !important;
-                                text-shadow: none !important;
-                                animation: text-shimmer 2.5s linear infinite, loader-in .6s .15s both !important;
-                            }
-                        }
-                        @keyframes text-shimmer { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+                        .loader-text { font-family: 'Segoe UI', Tahoma, sans-serif !important; font-size: 1.8rem !important; font-weight: 800 !important; letter-spacing: 6px !important; text-transform: uppercase !important; color: #ffffff !important; text-shadow: 0 0 18px rgba(110,142,251,.65), 0 0 40px rgba(167,119,227,.4) !important; animation: loader-in .6s .15s both !important; }
                         .loader-bar { width: 250px !important; max-width: 70vw !important; height: 4px !important; border-radius: 4px !important; background: rgba(255,255,255,0.1) !important; overflow: hidden !important; margin-top: 32px !important; position: relative !important; animation: loader-in .6s .3s both !important; }
-                        .loader-bar::before { content: '' !important; position: absolute !important; top: 0 !important; left: -45% !important; width: 45% !important; height: 100% !important; border-radius: 4px !important; background: linear-gradient(90deg, #ff4757, #a777e3, #6e8efb) !important; box-shadow: 0 0 14px rgba(110,142,251,0.9) !important; animation: bar-slide 1.2s cubic-bezier(.45,0,.55,1) infinite !important; }
+                        .loader-bar-slide { position: absolute !important; top: 0 !important; left: -45% !important; width: 45% !important; height: 100% !important; border-radius: 4px !important; background: linear-gradient(90deg, #ff4757, #a777e3, #6e8efb) !important; box-shadow: 0 0 14px rgba(110,142,251,0.9) !important; animation: bar-slide 1.2s cubic-bezier(.45,0,.55,1) infinite !important; }
                         @keyframes bar-slide { 0% { left: -45%; } 100% { left: 100%; } }
                         @keyframes loader-in { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
                     </style>
                     <div id="seamless-loader-overlay">
                         <div class="cool-spinner"><div></div><div></div><div></div></div>
                         <div class="loader-text" id="dynamic-loader-text">LOADING...</div>
-                        <div class="loader-bar"></div>
+                        <div class="loader-bar"><div class="loader-bar-slide"></div></div>
                     </div>`;
 
                     const loaderScript = `
@@ -1460,8 +1464,7 @@
                        --------------------------------------------------------------
                        master.txt    : ONE base64-encoded master ID (line 1).
                                        Matches the typed ID exactly -> instant
-                                       access from any IP. Checked FIRST,
-                                       before the normal key list.
+                                       access from any IP. Checked FIRST.
                        keys.txt      : one base64 value per line (line = ID).
                                        IP key -> only that network unlocks;
                                        codeword -> unlocks anywhere.
@@ -1483,7 +1486,6 @@
                         });
                     }
 
-                    // Loads a key file: fresh if possible, cached (localStorage) if offline
                     function loadKeyFile(cacheKey, url) {
                         var entry = null;
                         try { entry = JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch (e) {}
@@ -1679,7 +1681,6 @@
                             var rawLine = (lines[idNum - 1] || '').trim();
                             if (!rawLine) return gateFail('Invalid ID.');
 
-                            // Accept both the decoded value and the raw line as candidates
                             var decoded = decodeKeyLine(rawLine);
                             var candidates = [];
                             if (decoded !== null && decoded.trim() !== '') candidates.push(decoded.trim());
@@ -1701,7 +1702,6 @@
                         });
                     }
 
-                    // Replays the splash entrance after unlocking (nice reward moment)
                     function replaySplash() {
                         var splash = document.getElementById('splash-screen');
                         if (!splash) return;
@@ -1794,6 +1794,21 @@
                         }
                     }
                     try { initStars(); } catch (e) {}
+
+                    /* ================================================================
+                       SHINE SPANS — real elements instead of pseudo-elements.
+                       Guarded so the cloned popout window never gets doubles.
+                    ================================================================ */
+                    (function injectShine() {
+                        var btns = document.querySelectorAll('.launch-btn, .game-btn');
+                        for (var i = 0; i < btns.length; i++) {
+                            var btn = btns[i];
+                            if (btn.querySelector('.shine')) continue;
+                            var shine = document.createElement('span');
+                            shine.className = 'shine';
+                            btn.appendChild(shine);
+                        }
+                    })();
 
                     /* ================================================================
                        GAME BUTTONS
