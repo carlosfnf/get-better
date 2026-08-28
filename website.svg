@@ -523,13 +523,6 @@
                     <div class="buttons-grid" id="game-buttons">
                         <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/GM.html">GN-math</button>
                         <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/EGP.html">EGP</button>
-                        <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/MC1.8.html">Minecraft</button>
-                        <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RB.html">Retrobowl</button>
-                        <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/RBC.html">Retrobowl College</button>
-                        <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/TOTM.html">TOTM</button>
-                        <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/soundboard.html">Soundboard</button>
-                        <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/CC3D.html">crazy cattle 3d</button>
-                        <button class="game-btn" data-url="https://cdn.jsdelivr.net/gh/carlosfnf/get-better@main/GDD.html">geomatrydash</button>
                     </div>
                 </div>
 
