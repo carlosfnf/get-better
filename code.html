@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus GGUF Local Studio</title>
+    <style>
+        :root {
+            --bg-base: #0B0E14;
+            --bg-surface: #151923;
+            --bg-surface-hover: #1E2433;
+            --border: #2A3143;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+            --accent-primary: #6366F1;
+            --accent-glow: rgba(99, 102, 241, .4);
+            --accent-secondary: #06B6D4;
+            --danger: #F43F5E;
+            --success: #10B981;
+            --warning: #F59E0B;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        [hidden] {
+            display: none !important
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: var(--bg-base);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569
+        }
+
+        #app {
+            display: flex;
+            width: 100%;
+            height: 100%
+        }
+
+        /* ---- sidebar ---- */
+        #sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            min-height: 0;
+            overflow: hidden
+        }
+
+        .brand-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
+
+        .brand-header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -.5px
+        }
+
+        #modelStatus {
+            margin: 6px 0 0;
+            font-size: .72rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: 'Fira Code', 'Courier New', monospace
+        }
+
+        .control-panel {
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
+
+        .file-upload-btn {
+            background: linear-gradient(135deg, var(--accent-primary), #8B5CF6);
+            color: #fff;
+            border: none;
+            padding: 11px;
+            border-radius: 8px;
+            font-size: .9rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all .2s;
+            display: block;
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, .2)
+        }
+
+        .file-upload-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, .4)
+        }
+
+        .file-upload-btn input {
+            display: none
+        }
+
+        .settings-btn {
+            position: relative;
+            width: 100%;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 11px;
+            border-radius: 8px;
+            font-size: .88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .settings-btn:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-surface-hover)
+        }
+
+        .settings-dot {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--warning);
+            box-shadow: 0 0 6px var(--warning);
+            display: none
+        }
+
+        .settings-dot.show {
+            display: block
+        }
+
+        #systemPrompt {
+            width: 100%;
+            background: var(--bg-base);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-family: inherit;
+            font-size: .82rem;
+            resize: vertical;
+            min-height: 36px;
+            max-height: 140px;
+            outline: none
+        }
+
+        #systemPrompt:focus {
+            border-color: var(--accent-primary)
+        }
+
+        #systemPrompt::placeholder {
+            color: #475569
+        }
+
+        .ghost-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 8px;
+            border-radius: 8px;
+            font-size: .82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .ghost-btn:hover {
+            border-color: var(--danger);
+            color: var(--danger)
+        }
+
+        #progress-container {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: none;
+            flex-shrink: 0
+        }
+
+        .progress-track {
+            background: var(--bg-base);
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px
+        }
+
+        .progress-fill {
+            background: var(--accent-secondary);
+            height: 100%;
+            width: 0%;
+            transition: width .2s ease
+        }
+
+        .progress-label {
+            font-size: .72rem;
+            color: var(--accent-secondary);
+            font-weight: 600;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: .5px
+        }
+
+        .terminal-header {
+            padding: 10px 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
+
+        #diagnostic-hud {
+            flex: 1;
+            min-height: 60px;
+            overflow-y: auto;
+            padding: 12px 20px;
+            background: #080A0F;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: .72rem;
+            line-height: 1.55
+        }
+
+        .log-error {
+            color: var(--danger)
+        }
+
+        .log-warn {
+            color: var(--warning)
+        }
+
+        .log-info {
+            color: var(--accent-secondary)
+        }
+
+        .log-system {
+            color: var(--text-muted)
+        }
+
+        .log-success {
+            color: var(--success)
+        }
+
+        /* ---- main ---- */
+        #main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-base);
+            position: relative;
+            min-width: 0
+        }
+
+        #chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px
+        }
+
+        .empty-state {
+            margin: auto;
+            text-align: center;
+            max-width: 460px;
+            color: var(--text-muted);
+            animation: fadeIn .4s ease-out
+        }
+
+        .empty-state .empty-icon {
+            font-size: 2.4rem;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        .empty-state h2 {
+            margin: 0 0 6px;
+            color: var(--text-main);
+            font-size: 1.3rem
+        }
+
+        .empty-state>p {
+            margin: 0 0 18px;
+            font-size: .9rem
+        }
+
+        .steps {
+            text-align: left;
+            display: inline-flex;
+            flex-direction: column;
+            gap: 8px
+        }
+
+        .steps div {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: .85rem
+        }
+
+        .steps span {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--accent-secondary)
+        }
+
+        .empty-state details {
+            text-align: left;
+            margin-top: 18px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: .8rem
+        }
+
+        .empty-state summary {
+            cursor: pointer;
+            color: var(--warning);
+            font-weight: 600;
+            user-select: none
+        }
+
+        .empty-state details p {
+            margin: 8px 0 4px;
+            font-size: .78rem
+        }
+
+        .empty-state pre {
+            margin: 8px 0 4px;
+            font-size: .68rem
+        }
+
+        .system-note {
+            margin: 0 auto;
+            max-width: 850px;
+            width: 100%;
+            text-align: center;
+            font-size: .72rem;
+            color: var(--text-muted);
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: 20px;
+            animation: fadeIn .3s ease-out
+        }
+
+        .message {
+            display: flex;
+            width: 100%;
+            max-width: 850px;
+            margin: 0 auto;
+            gap: 16px;
+            animation: fadeIn .25s ease-out
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            font-weight: 700
+        }
+
+        .user .avatar {
+            background: var(--bg-surface-hover)
+        }
+
+        .ai .avatar {
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+            color: #fff
+        }
+
+        .bubble {
+            max-width: calc(100% - 52px);
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-size: .95rem;
+            line-height: 1.6;
+            word-wrap: break-word;
+            overflow-x: auto
+        }
+
+        .user .bubble {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-top-right-radius: 2px
+        }
+
+        .ai .bubble {
+            background: transparent;
+            padding-top: 4px
+        }
+
+        .bubble p {
+            margin: 0 0 12px
+        }
+
+        .bubble>p:last-of-type {
+            margin-bottom: 0
+        }
+
+        .bubble h3,
+        .bubble h4,
+        .bubble h5 {
+            margin: 14px 0 8px;
+            line-height: 1.3
+        }
+
+        .bubble h3 {
+            font-size: 1.08rem
+        }
+
+        .bubble h4 {
+            font-size: .98rem
+        }
+
+        .bubble h5 {
+            font-size: .9rem
+        }
+
+        .bubble ul,
+        .bubble ol {
+            margin: 0 0 12px;
+            padding-left: 22px
+        }
+
+        .bubble li {
+            margin: 4px 0
+        }
+
+        .bubble blockquote {
+            margin: 0 0 12px;
+            padding: 6px 14px;
+            border-left: 3px solid var(--accent-primary);
+            color: var(--text-muted);
+            background: rgba(99, 102, 241, .06);
+            border-radius: 0 6px 6px 0
+        }
+
+        pre {
+            background: #000;
+            border: 1px solid var(--border);
+            padding: 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: .83rem;
+            margin: 12px 0
+        }
+
+        code {
+            background: rgba(255, 255, 255, .1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: .85em;
+            color: #E2E8F0
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #60A5FA
+        }
+
+        details.thought-process {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            overflow: hidden
+        }
+
+        details.thought-process summary {
+            padding: 9px 16px;
+            font-size: .8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, .2);
+            transition: color .2s
+        }
+
+        details.thought-process summary::-webkit-details-marker {
+            display: none
+        }
+
+        details.thought-process summary:hover {
+            color: var(--text-main)
+        }
+
+        details.thought-process summary::before {
+            content: "🧠"
+        }
+
+        .thought-content {
+            padding: 14px 16px;
+            font-family: 'Fira Code', monospace;
+            font-size: .8rem;
+            color: #94A3B8;
+            border-top: 1px solid var(--border);
+            line-height: 1.5;
+            max-height: 320px;
+            overflow-y: auto
+        }
+
+        .response-metrics {
+            display: inline-flex;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 5px 12px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: .72rem;
+            font-family: 'Fira Code', monospace;
+            color: var(--text-muted)
+        }
+
+        .metrics-live {
+            color: var(--accent-secondary);
+            border-color: rgba(6, 182, 212, .35)
+        }
+
+        .pending {
+            color: var(--text-muted)
+        }
+
+        .caret {
+            display: inline-block;
+            width: 8px;
+            height: 1em;
+            margin-left: 2px;
+            background: var(--accent-secondary);
+            border-radius: 2px;
+            vertical-align: text-bottom;
+            animation: blink 1s steps(2, start) infinite
+        }
+
+        @keyframes blink {
+            to {
+                visibility: hidden
+            }
+        }
+
+        .copy-btn {
+            margin-top: 10px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: .68rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .copy-btn:hover {
+            color: var(--accent-secondary);
+            border-color: var(--accent-secondary)
+        }
+
+        .input-wrapper {
+            padding: 20px 30px;
+            background: linear-gradient(to top, var(--bg-base) 70%, transparent);
+            display: flex;
+            justify-content: center;
+            flex-shrink: 0
+        }
+
+        .input-box {
+            width: 100%;
+            max-width: 850px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            display: flex;
+            align-items: flex-end;
+            padding: 8px 12px;
+            gap: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .2);
+            transition: border-color .2s
+        }
+
+        .input-box:focus-within {
+            border-color: var(--accent-primary)
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            padding: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: none;
+            outline: none;
+            max-height: 150px;
+            line-height: 1.5
+        }
+
+        textarea::placeholder {
+            color: #475569
+        }
+
+        .send-btn {
+            background: var(--accent-primary);
+            color: #fff;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .2s;
+            flex-shrink: 0;
+            margin-bottom: 2px
+        }
+
+        .send-btn:disabled {
+            background: var(--border);
+            color: #475569;
+            cursor: not-allowed;
+            transform: none
+        }
+
+        .send-btn:not(:disabled):hover {
+            background: #4F46E5;
+            transform: scale(1.05)
+        }
+
+        .send-btn.stopping {
+            background: var(--danger)
+        }
+
+        .send-btn.stopping:not(:disabled):hover {
+            background: #E11D48
+        }
+
+        /* ---- shared slider rows (sidebar + modal) ---- */
+        .slider-row {
+            margin-bottom: 4px
+        }
+
+        .slider-row label {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: .7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 5px;
+            font-weight: 700
+        }
+
+        .slider-row label span {
+            color: var(--accent-secondary);
+            font-family: 'Fira Code', monospace;
+            font-size: .75rem
+        }
+
+        .slider-row input[type=range] {
+            width: 100%;
+            accent-color: var(--accent-primary);
+            cursor: pointer
+        }
+
+        input[type=range]:disabled {
+            opacity: .45;
+            cursor: not-allowed
+        }
+
+        .slider-row.locked {
+            opacity: .6
+        }
+
+        .lock-note {
+            display: none;
+            font-size: .68rem;
+            color: var(--warning);
+            margin-top: 4px
+        }
+
+        .slider-row.locked .lock-note {
+            display: block
+        }
+
+        /* ---- settings modal ---- */
+        .settings-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 8, 14, .72);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            animation: fadeIn .15s ease-out
+        }
+
+        .settings-modal {
+            width: min(580px, calc(100vw - 32px));
+            max-height: calc(100vh - 48px);
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+            animation: pop .18s ease-out;
+            overflow: hidden
+        }
+
+        @keyframes pop {
+            from {
+                transform: scale(.96);
+                opacity: 0
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1
+            }
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
+
+        .settings-header h2 {
+            margin: 0;
+            font-size: 1.05rem
+        }
+
+        .icon-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px
+        }
+
+        .icon-close:hover {
+            color: var(--text-main);
+            background: var(--bg-surface-hover)
+        }
+
+        .settings-body {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0
+        }
+
+        .settings-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border)
+        }
+
+        .settings-section:last-child {
+            border-bottom: none
+        }
+
+        .section-label {
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px
+        }
+
+        .settings-hint {
+            font-size: .72rem;
+            color: var(--text-muted);
+            margin: 8px 0 0;
+            line-height: 1.45
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px
+        }
+
+        @media (max-width:420px) {
+            .preset-grid {
+                grid-template-columns: 1fr
+            }
+        }
+
+        .preset-btn {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            align-items: center;
+            text-align: center;
+            color: var(--text-muted);
+            transition: all .15s;
+            font-family: inherit
+        }
+
+        .preset-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-main)
+        }
+
+        .preset-btn.active {
+            border-color: var(--accent-primary);
+            background: rgba(99, 102, 241, .12);
+            box-shadow: 0 0 0 1px var(--accent-primary) inset
+        }
+
+        .preset-name {
+            font-size: .9rem;
+            font-weight: 700;
+            color: var(--text-main)
+        }
+
+        .preset-btn.active .preset-name::after {
+            content: " ✓";
+            color: var(--accent-secondary)
+        }
+
+        .preset-spec {
+            font-size: .68rem;
+            font-family: 'Fira Code', monospace;
+            color: var(--accent-secondary)
+        }
+
+        .preset-desc {
+            font-size: .66rem
+        }
+
+        .adv-toggle-row {
+            display: flex;
+            gap: 14px;
+            align-items: center
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0
+        }
+
+        .switch .knob {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: .2s;
+            cursor: pointer
+        }
+
+        .switch .knob::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 3px;
+            top: 3px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: .2s
+        }
+
+        .switch input:checked+.knob {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary)
+        }
+
+        .switch input:checked+.knob::before {
+            transform: translateX(20px);
+            background: #fff
+        }
+
+        .advanced-section {
+            background: rgba(0, 0, 0, .18)
+        }
+
+        .advanced-section .settings-section {
+            border-bottom: 1px solid var(--border)
+        }
+
+        .advanced-section .settings-section:last-child {
+            border-bottom: none
+        }
+
+        .advanced-section .slider-row {
+            margin-bottom: 14px
+        }
+
+        .advanced-section .slider-row:last-child {
+            margin-bottom: 0
+        }
+
+        .settings-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            flex-wrap: wrap
+        }
+
+        .done-btn {
+            background: linear-gradient(135deg, var(--accent-primary), #8B5CF6);
+            color: #fff;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: .88rem;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .done-btn:hover {
+            transform: translateY(-1px)
+        }
+
+        .reload-hint {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: .73rem;
+            color: var(--warning);
+            font-family: 'Fira Code', monospace;
+            flex-wrap: wrap
+        }
+
+        .reload-btn {
+            background: transparent;
+            border: 1px solid var(--warning);
+            color: var(--warning);
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: .73rem;
+            font-weight: 600;
+            font-family: inherit;
+            transition: all .15s
+        }
+
+        .reload-btn:hover {
+            background: rgba(245, 158, 11, .12)
+        }
+
+        @media (max-width:768px) {
+            #app {
+                flex-direction: column
+            }
+
+            #sidebar {
+                width: 100%;
+                max-height: 46%;
+                border-right: none;
+                border-bottom: 1px solid var(--border)
+            }
+
+            .message {
+                max-width: 100%
+            }
+
+            #chat-history {
+                padding: 16px
+            }
+
+            .input-wrapper {
+                padding: 12px 16px
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <aside id="sidebar">
+            <div class="brand-header">
+                <h1>NEXUS STUDIO</h1>
+                <p id="modelStatus">no model loaded</p>
+            </div>
+
+            <div class="control-panel">
+                <label class="file-upload-btn"><span>Load .GGUF Model</span><input type="file" id="ggufInput" accept=".gguf"></label>
+                <button id="settingsBtn" class="settings-btn" type="button">⚙️ Settings<span id="settingsDot" class="settings-dot"></span></button>
+                <textarea id="systemPrompt" placeholder="System prompt (optional)…"></textarea>
+                <button id="newChatBtn" class="ghost-btn" type="button">🗑 New Chat</button>
+            </div>
+
+            <div id="progress-container">
+                <div class="progress-track">
+                    <div id="progress-bar" class="progress-fill"></div>
+                </div>
+                <div id="progress-text" class="progress-label">Awaiting model…</div>
+            </div>
+
+            <div class="terminal-header">System Diagnostics</div>
+            <div id="diagnostic-hud"></div>
+        </aside>
+
+        <main id="main-chat">
+            <div id="chat-history">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">✦</div>
+                    <h2>Nexus Studio</h2>
+                    <p>Run GGUF models entirely in your browser. Nothing leaves this machine.</p>
+                    <div class="steps">
+                        <div><span>1</span> Open <strong>⚙️ Settings</strong> and pick a preset</div>
+                        <div><span>2</span> Load a <code>.gguf</code> file from your drive</div>
+                        <div><span>3</span> Chat — reasoning models get a collapsible thought panel</div>
+                    </div>
+                    <details>
+                        <summary>⚡ Unlock multi-thread speed (COOP/COEP)</summary>
+                        <p>Browsers only allow shared-memory threads on cross-origin-isolated pages, so serve this file
+                            instead of opening it directly:</p>
+                        <pre><code>// serve.mjs — run: node serve.mjs  →  http://localhost:8000
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+http.createServer(async (req, res) =&gt; {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  try {
+    const path = req.url === '/' ? '/index.html' : req.url;
+    res.end(await readFile('.' + path));
+  } catch {
+    res.statusCode = 404; res.end('Not found');
+  }
+}).listen(8000);</code></pre>
+                    </details>
+                </div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-box">
+                    <textarea id="userInput" rows="1" disabled placeholder="Engine offline — load a model first."></textarea>
+                    <button id="sendBtn" class="send-btn" disabled title="Send"></button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ============ SETTINGS MODAL ============ -->
+    <div id="settingsOverlay" class="settings-overlay" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
+            <div class="settings-header">
+                <h2>⚙️ Settings</h2>
+                <button id="settingsClose" class="icon-close" type="button" title="Close">✕</button>
+            </div>
+
+            <div class="settings-body">
+                <div class="settings-section">
+                    <div class="section-label">Performance preset</div>
+                    <div class="preset-grid">
+                        <button type="button" class="preset-btn" data-preset="small">
+            <span class="preset-name">Small</span>
+            <span class="preset-spec">4K ctx · 1K new</span>
+            <span class="preset-desc">Fast · low RAM</span>
+          </button>
+                        <button type="button" class="preset-btn" data-preset="medium">
+            <span class="preset-name">Medium</span>
+            <span class="preset-spec">6K ctx · 2K new</span>
+            <span class="preset-desc">Balanced</span>
+          </button>
+                        <button type="button" class="preset-btn" data-preset="big">
+            <span class="preset-name">Big</span>
+            <span class="preset-spec">8K ctx · 4K new</span>
+            <span class="preset-desc">Long reasoning</span>
+          </button>
+                    </div>
+                    <p class="settings-hint">Sets context size and max new tokens. New tokens apply immediately; context
+                        size needs an engine restart if a model is already loaded.
+                        <strong>Temperature is never changed by presets.</strong></p>
+                </div>
+
+                <div class="settings-section">
+                    <div class="section-label">Temperature</div>
+                    <div class="slider-row locked" id="tempRow">
+                        <label>Sampling temperature <span id="tempValue">0.60</span></label>
+                        <input type="range" id="tempSlider" min="0" max="1.5" step="0.05" value="0.6" disabled>
+                        <span class="lock-note">🔒 Locked — turn on Advanced mode to change</span>
+                    </div>
+                </div>
+
+                <div class="settings-section adv-toggle-row">
+                    <label class="switch">
+          <input type="checkbox" id="advancedToggle">
+          <span class="knob"></span>
+        </label>
+                    <div>
+                        <div class="section-label" style="margin:0">Advanced mode</div>
+                        <p class="settings-hint" style="margin:2px 0 0">Manual sliders, sampling controls and engine
+                            selection</p>
+                    </div>
+                </div>
+
+                <div id="advancedSection" class="advanced-section" hidden>
+                    <div class="settings-section">
+                        <div class="section-label">Engine</div>
+                        <select id="engineSelect" class="styled-select">
+            <option value="multithread">🧵 Multi-Thread WASM</option>
+            <option value="singlethread">🐢 Single-Thread WASM</option>
+          </select>
+                        <p class="settings-hint">Engine choice applies on restart.</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="section-label">Context &amp; generation</div>
+                        <div class="slider-row">
+                            <label>Context size (tokens) <span id="ctxValue">6144</span></label>
+                            <input type="range" id="ctxSlider" min="1024" max="16384" step="512" value="6144">
+                        </div>
+                        <div class="slider-row">
+                            <label>Max new tokens <span id="predictValue">2048</span></label>
+                            <input type="range" id="predictSlider" min="128" max="8192" step="128" value="2048">
+                        </div>
+                        <p class="settings-hint">Moving these off a preset marks it as custom. Context applies on
+                            restart.</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="section-label">Sampling</div>
+                        <div class="slider-row">
+                            <label>Top P <span id="topPValue">0.95</span></label>
+                            <input type="range" id="topPSlider" min="0.1" max="1" step="0.05" value="0.95">
+                        </div>
+                        <div class="slider-row">
+                            <label>Top K <span id="topKValue">40</span></label>
+                            <input type="range" id="topKSlider" min="0" max="100" step="1" value="40">
+                        </div>
+                        <div class="slider-row">
+                            <label>Repeat penalty <span id="penaltyValue">1.10</span></label>
+                            <input type="range" id="penaltySlider" min="1" max="1.5" step="0.01" value="1.1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-footer">
+                <div id="reloadHint" class="reload-hint" hidden>
+                    <span id="reloadHintText"></span>
+                    <button id="reloadModelBtn" class="reload-btn" type="button">♻ Restart Engine</button>
+                </div>
+                <button id="settingsDone" class="done-btn" type="button">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        /* ================= CONFIG =================
+   PINNED on purpose: newer wllama releases changed the pathConfig schema
+   ("default" is missing from pathConfig). If you bump WLLAMA_VERSION,
+   copy that release's CONFIG_URLS from its README. */
+const WLLAMA_VERSION = '2.3.1';
+const CDN_BASE = `https://cdn.jsdelivr.net/npm/@wllama/wllama@${WLLAMA_VERSION}/esm`;
+const WASM_CONFIG = {
+  'single-thread/wllama.wasm':      `${CDN_BASE}/single-thread/wllama.wasm`,
+  'multi-thread/wllama.wasm':       `${CDN_BASE}/multi-thread/wllama.wasm`,
+  'multi-thread/wllama.worker.mjs': `${CDN_BASE}/multi-thread/wllama.worker.mjs`,
+};
+// escaped on purpose so nothing between here and your file can eat them
+const THINK_OPEN  = '\x3cthink\x3e';
+const THINK_CLOSE = '\x3c/think\x3e';
+
+/* ================= PRESETS & SETTINGS =================
+   NOTE: presets intentionally contain NO temperature —
+   temp is global, survives preset switches, and is only
+   editable while Advanced mode is on. */
+const PRESETS = {
+  small:  { ctx: 4096, predict: 1024 },
+  medium: { ctx: 6144, predict: 2048 },
+  big:    { ctx: 8192, predict: 4096 },
+};
+const settings = {
+  preset: 'medium',
+  engine: 'multithread',            // pending engine (applies on restart)
+  nCtx: PRESETS.medium.ctx,         // pending context (applies on restart)
+  nPredict: PRESETS.medium.predict, // applies per generation
+  temp: 0.6,                        // global — never touched by presets
+  topP: 0.95,
+  topK: 40,
+  repPenalty: 1.1,
+  advanced: false,
+};
+
+/* ================= DOM ================= */
+const $ = id => document.getElementById(id);
+const hud = $('diagnostic-hud'), ggufInput = $('ggufInput'),
+      newChatBtn = $('newChatBtn'), progContainer = $('progress-container'), progBar = $('progress-bar'),
+      progText = $('progress-text'), chatContainer = $('chat-history'), userInput = $('userInput'),
+      sendBtn = $('sendBtn'), modelStatus = $('modelStatus'), systemPromptEl = $('systemPrompt'),
+      settingsBtn = $('settingsBtn'), settingsDot = $('settingsDot'), settingsOverlay = $('settingsOverlay'),
+      settingsClose = $('settingsClose'), settingsDone = $('settingsDone'), advancedToggle = $('advancedToggle'),
+      advancedSection = $('advancedSection'), engineSelect = $('engineSelect'),
+      ctxSlider = $('ctxSlider'), ctxValue = $('ctxValue'),
+      predictSlider = $('predictSlider'), predictValue = $('predictValue'),
+      tempSlider = $('tempSlider'), tempValue = $('tempValue'), tempRow = $('tempRow'),
+      topPSlider = $('topPSlider'), topPValue = $('topPValue'),
+      topKSlider = $('topKSlider'), topKValue = $('topKValue'),
+      penaltySlider = $('penaltySlider'), penaltyValue = $('penaltyValue'),
+      reloadHint = $('reloadHint'), reloadHintText = $('reloadHintText'), reloadModelBtn = $('reloadModelBtn');
+const presetBtns = document.querySelectorAll('.preset-btn');
+
+/* ================= STATE ================= */
+let WllamaClass = null;
+let wllama = null;
+let loadedFile = null;       // kept so "Restart Engine" can re-load without re-browsing
+let modelInfo = null;        // { name, sizeMB, ctx, threads, engine } — as actually loaded
+let history = [];
+let isGenerating = false;
+let isLoading = false;
+let stopRequested = false;
+
+/* ================= LOGGING ================= */
+function sysLog(msg, type = 'system') {
+  const line = document.createElement('div');
+  line.className = `log-${type}`;
+  line.textContent = `[${new Date().toTimeString().slice(0, 8)}] ${msg}`;
+  hud.appendChild(line);
+  while (hud.childNodes.length > 300) hud.removeChild(hud.firstChild);
+  hud.scrollTop = hud.scrollHeight;
+}
+const fmtArg = a => {
+  if (typeof a === 'string') return a;
+  if (a instanceof Error) return a.message;
+  try { return JSON.stringify(a); } catch { return String(a); }
+};
+const origLog = console.log.bind(console), origWarn = console.warn.bind(console), origError = console.error.bind(console);
+console.log   = (...a) => { sysLog(a.map(fmtArg).join(' '), 'info');  origLog(...a); };
+console.warn  = (...a) => { sysLog(a.map(fmtArg).join(' '), 'warn');  origWarn(...a); };
+console.error = (...a) => { sysLog(a.map(fmtArg).join(' '), 'error'); origError(...a); };
+window.addEventListener('error', e => sysLog(`CRASH: ${e.message} @ line ${e.lineno}`, 'error'));
+window.addEventListener('unhandledrejection', e => sysLog(`PROMISE REJECTED: ${fmtArg(e.reason)}`, 'error'));
+
+/* ================= MARKDOWN (mini, escape-first) ================= */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function inlineFmt(s) {
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*(\S(?:[^*\n]*\S)?)\*(?=[\s).,!?;:]|$)/g, '$1<em>$2</em>');
+}
+function formatMarkdown(raw) {
+  let text = escapeHtml(raw);
+  const codeBlocks = [];
+  // protect fenced code BEFORE paragraph splitting so blank lines can't tear fences apart
+  text = text.replace(/(^|\n)```[^\n]*\n?([\s\S]*?)(\n```|$)/g, (_, nl, code) => {
+    codeBlocks.push(code.replace(/\n+$/, ''));
+    return `${nl}\x00${codeBlocks.length - 1}\x00`;
+  });
+  text = text.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  const renderBlock = i => `<pre><code>${codeBlocks[i]}</code></pre>`;
+  const lines = text.split('\n');
+  let html = '', para = [], listTag = null;
+  const flushPara = () => { if (para.length) { html += `<p>${para.join('<br>')}</p>`; para = []; } };
+  const closeList = () => { if (listTag) { html += `</${listTag}>`; listTag = null; } };
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) { flushPara(); closeList(); continue; }
+    const ph = t.match(/^\x00(\d+)\x00$/);
+    if (ph) { flushPara(); closeList(); html += renderBlock(+ph[1]); continue; }
+    const h = t.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { flushPara(); closeList(); const l = h[1].length + 2; html += `<h${l}>${inlineFmt(h[2])}</h${l}>`; continue; }
+    const ul = t.match(/^[-*+]\s+(.*)$/);
+    if (ul) { flushPara(); if (listTag !== 'ul') { closeList(); html += '<ul>'; listTag = 'ul'; } html += `<li>${inlineFmt(ul[1])}</li>`; continue; }
+    const ol = t.match(/^(\d+)[.)]\s+(.*)$/);
+    if (ol) { flushPara(); if (listTag !== 'ol') { closeList(); html += '<ol>'; listTag = 'ol'; } html += `<li>${inlineFmt(ol[2])}</li>`; continue; }
+    const bq = t.match(/^&gt;\s?(.*)$/);
+    if (bq) { flushPara(); closeList(); html += `<blockquote>${inlineFmt(bq[1])}</blockquote>`; continue; }
+    closeList();
+    para.push(inlineFmt(t));
+  }
+  flushPara(); closeList();
+  return html.replace(/\x00(\d+)\x00/g, (_, i) => renderBlock(+i));
+}
+
+/* ================= THINK-TAG PARSER ================= */
+function parseThinking(text) {
+  const start = text.indexOf(THINK_OPEN);
+  if (start === -1) return { think: '', response: text };
+  const prefix = start > 0 ? text.slice(0, start) : '';
+  const end = text.indexOf(THINK_CLOSE, start);
+  if (end === -1) return { think: text.slice(start + THINK_OPEN.length).trim(), response: prefix.trim() };
+  const tail = text.slice(end + THINK_CLOSE.length);
+  const response = (prefix && tail) ? `${prefix}\n\n${tail}` : (prefix || tail);
+  return { think: text.slice(start + THINK_OPEN.length, end).trim(), response: response.trim() };
+}
+
+/* ================= UI HELPERS ================= */
+function appendMessage(role, text) {
+  const wrap = document.createElement('div');
+  wrap.className = `message ${role}`;
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'user' ? 'U' : '✦';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = role === 'user' ? formatMarkdown(text) : text;
+  wrap.append(avatar, bubble);
+  chatContainer.appendChild(wrap);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+  return { wrap, bubble };
+}
+function showNote(html) {
+  chatContainer.innerHTML = '';
+  const note = document.createElement('div');
+  note.className = 'system-note';
+  note.innerHTML = html;
+  chatContainer.appendChild(note);
+}
+function showProgress(label) {
+  progContainer.style.display = 'block';
+  progBar.style.width = '0%';
+  progBar.style.background = '';
+  progText.textContent = label;
+}
+
+const ICON_SEND = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+const ICON_STOP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
+function setSendMode(mode) {
+  if (mode === 'stop') {
+    sendBtn.classList.add('stopping');
+    sendBtn.innerHTML = ICON_STOP;
+    sendBtn.disabled = false;
+    sendBtn.title = 'Stop generation (Esc)';
+  } else {
+    sendBtn.classList.remove('stopping');
+    sendBtn.innerHTML = ICON_SEND;
+    sendBtn.disabled = !wllama || userInput.disabled || userInput.value.trim().length === 0;
+    sendBtn.title = 'Send';
+  }
+}
+
+/* ================= SETTINGS LOGIC ================= */
+function effectiveEngine() {
+  return (settings.engine === 'multithread' && window.crossOriginIsolated) ? 'multithread' : 'singlethread';
+}
+function refreshPresetHighlight() {
+  const match = Object.keys(PRESETS).find(k => PRESETS[k].ctx === settings.nCtx && PRESETS[k].predict === settings.nPredict);
+  settings.preset = match || 'custom';
+  presetBtns.forEach(b => b.classList.toggle('active', b.dataset.preset === settings.preset));
+}
+function updateReloadHint() {
+  const needed = !!(wllama && loadedFile && (settings.nCtx !== modelInfo.ctx || effectiveEngine() !== modelInfo.engine));
+  reloadHint.hidden = !needed;
+  settingsDot.classList.toggle('show', needed);
+  if (needed) {
+    const parts = [];
+    if (settings.nCtx !== modelInfo.ctx) parts.push(`ctx ${modelInfo.ctx}→${settings.nCtx}`);
+    if (effectiveEngine() !== modelInfo.engine) parts.push('engine');
+    reloadHintText.textContent = `⚠ Restart to apply: ${parts.join(' · ')}`;
+  }
+}
+function syncSettingsUI() {
+  ctxSlider.value = settings.nCtx;             ctxValue.textContent = settings.nCtx;
+  predictSlider.value = settings.nPredict;     predictValue.textContent = settings.nPredict;
+  tempSlider.value = settings.temp;            tempValue.textContent = settings.temp.toFixed(2);
+  topPSlider.value = settings.topP;            topPValue.textContent = settings.topP.toFixed(2);
+  topKSlider.value = settings.topK;            topKValue.textContent = settings.topK;
+  penaltySlider.value = settings.repPenalty;   penaltyValue.textContent = settings.repPenalty.toFixed(2);
+  engineSelect.value = settings.engine;
+  advancedToggle.checked = settings.advanced;
+  advancedSection.hidden = !settings.advanced;
+  tempSlider.disabled = !settings.advanced;   // 🔒 the one and only gate for temperature
+  tempRow.classList.toggle('locked', !settings.advanced);
+  refreshPresetHighlight();
+  updateReloadHint();
+}
+function openSettings()  { syncSettingsUI(); settingsOverlay.hidden = false; }
+function closeSettings() { settingsOverlay.hidden = true; }
+
+presetBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    settings.nCtx = p.ctx;
+    settings.nPredict = p.predict;
+    sysLog(`Preset "${btn.dataset.preset}" → ${p.ctx} ctx · ${p.predict} new tokens (temperature untouched).`, 'info');
+    syncSettingsUI();
+  });
+});
+advancedToggle.addEventListener('change', () => {
+  settings.advanced = advancedToggle.checked;
+  sysLog(`Advanced mode ${settings.advanced ? 'ON — manual controls unlocked' : 'OFF'}.`, 'info');
+  syncSettingsUI();
+});
+ctxSlider.addEventListener('input', () => {
+  settings.nCtx = +ctxSlider.value;
+  ctxValue.textContent = settings.nCtx;
+  refreshPresetHighlight(); updateReloadHint();
+});
+predictSlider.addEventListener('input', () => {
+  settings.nPredict = +predictSlider.value;
+  predictValue.textContent = settings.nPredict;
+  refreshPresetHighlight();
+});
+tempSlider.addEventListener('input', () => {
+  settings.temp = +tempSlider.value;
+  tempValue.textContent = settings.temp.toFixed(2);
+});
+topPSlider.addEventListener('input', () => { settings.topP = +topPSlider.value; topPValue.textContent = settings.topP.toFixed(2); });
+topKSlider.addEventListener('input', () => { settings.topK = +topKSlider.value; topKValue.textContent = settings.topK; });
+penaltySlider.addEventListener('input', () => { settings.repPenalty = +penaltySlider.value; penaltyValue.textContent = settings.repPenalty.toFixed(2); });
+engineSelect.addEventListener('change', () => { settings.engine = engineSelect.value; updateReloadHint(); });
+
+settingsBtn.addEventListener('click', openSettings);
+settingsClose.addEventListener('click', closeSettings);
+settingsDone.addEventListener('click', closeSettings);
+settingsOverlay.addEventListener('click', e => { if (e.target === settingsOverlay) closeSettings(); });
+reloadModelBtn.addEventListener('click', () => {
+  if (!loadedFile) return;
+  closeSettings();
+  loadModelFile(loadedFile);
+});
+
+/* ================= ENGINE ================= */
+async function getWllamaClass() {
+  if (!WllamaClass) {
+    sysLog(`Fetching engine module v${WLLAMA_VERSION} from CDN…`);
+    const mod = await import(`${CDN_BASE}/index.js`);
+    WllamaClass = mod.Wllama;
+  }
+  return WllamaClass;
+}
+
+async function loadModelFile(file) {
+  if (isLoading)    { sysLog('A load is already in progress.', 'warn'); return; }
+  if (isGenerating) { sysLog('Stop generation before swapping models.', 'warn'); return; }
+  if (!file.name.toLowerCase().endsWith('.gguf')) { sysLog('That does not look like a .gguf file.', 'warn'); return; }
+
+  isLoading = true;
+  const nCtx = settings.nCtx;
+  const engine = effectiveEngine();
+  const nThreads = engine === 'multithread' ? Math.min(navigator.hardwareConcurrency || 2, 8) : 1;
+
+  sysLog('--- LOAD SEQUENCE START ---', 'info');
+  sysLog(`File: ${file.name} (${(file.size / 1048576).toFixed(1)} MB)`);
+  sysLog(`Engine: ${engine} · ${nThreads} thread${nThreads > 1 ? 's' : ''}`);
+  sysLog(`Context: ${nCtx} tokens · preset: ${settings.preset}`);
+  showProgress('Initializing engine…');
+
+  try {
+    const Wllama = await getWllamaClass();
+    if (wllama) {
+      sysLog('Unloading previous model…');
+      try { await wllama.exit(); } catch {}
+      wllama = null;
+    }
+
+    wllama = new Wllama(WASM_CONFIG);
+    await wllama.loadModel([file], {
+      n_ctx: nCtx,
+      n_threads: nThreads,
+      jinja: true,
+      progressCallback: ({ loaded, total }) => {
+        const pct = total ? Math.round((loaded / total) * 100) : 100;
+        progBar.style.width = `${pct}%`;
+        progText.textContent = `Loading weights: ${pct}% (${(loaded / 1048576).toFixed(0)} / ${(total / 1048576).toFixed(0)} MB)`;
+      },
+    });
+
+    modelInfo = { name: file.name, sizeMB: (file.size / 1048576).toFixed(0), ctx: nCtx, threads: nThreads, engine };
+    loadedFile = file;
+    modelStatus.textContent = `${file.name} · ${modelInfo.sizeMB} MB · ${nThreads} thread${nThreads > 1 ? 's' : ''} · ${nCtx} ctx`;
+
+    progBar.style.width = '100%';
+    progBar.style.background = 'var(--success)';
+    progText.textContent = 'System online';
+    setTimeout(() => { progContainer.style.display = 'none'; }, 2500);
+
+    history = [];
+    showNote(`Engine online — <strong>${escapeHtml(file.name)}</strong> · ${modelInfo.sizeMB} MB · ${nThreads} thread${nThreads > 1 ? 's' : ''} · ${nCtx} ctx`);
+    userInput.disabled = false;
+    userInput.placeholder = 'Message the model…';
+    setSendMode('send');
+    updateReloadHint();
+    sysLog('SUCCESS: engine ready.', 'success');
+    userInput.focus();
+  } catch (err) {
+    const msg = err?.message || String(err);
+    sysLog(`LOAD ERROR: ${msg}`, 'error');
+    progBar.style.background = 'var(--danger)';
+    progText.textContent = 'Load failed';
+    if (/pathConfig|fetch|network|404/i.test(msg)) {
+      sysLog('Hint: a CDN path or the pinned version may be wrong — open the WASM_CONFIG URLs in a tab to verify.', 'warn');
+    }
+    wllama = null;
+    modelStatus.textContent = 'load failed — no model';
+    userInput.disabled = true;
+    userInput.placeholder = 'Engine offline — load a model first.';
+    setSendMode('send');
+    updateReloadHint();
+  } finally {
+    isLoading = false;
+  }
+}
+
+ggufInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (file) loadModelFile(file);
+});
+
+/* ================= CONTEXT MANAGEMENT ================= */
+function buildContextMessages() {
+  const budget = Math.max(256, (modelInfo?.ctx || 2048) - settings.nPredict - 256);
+  const est = s => Math.ceil((s || '').length / 3);
+  const out = [];
+  let used = 0;
+  const sys = systemPromptEl.value.trim();
+  if (sys) { out.push({ role: 'system', content: sys }); used += est(sys); }
+  const kept = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    const t = est(m.content);
+    if (used + t > budget && kept.length >= 1) break; // newest message always kept
+    used += t;
+    kept.unshift(m);
+  }
+  return out.concat(kept);
+}
+
+/* ================= GENERATION ================= */
+async function handleSendMessage() {
+  if (isGenerating || isLoading || !wllama) return;
+  const text = userInput.value.trim();
+  if (!text) return;
+
+  userInput.value = '';
+  userInput.style.height = 'auto';
+  history.push({ role: 'user', content: text });
+  appendMessage('user', text);
+
+  const { temp, topP, topK, repPenalty, nPredict } = settings;
+  const messages = buildContextMessages();
+  if (nPredict > (modelInfo.ctx - 256)) sysLog('Warning: max new tokens is close to context size — history trimmed hard.', 'warn');
+  sysLog(`Inference start · temp ${temp.toFixed(2)} · top_p ${topP} · top_k ${topK} · nPredict ${nPredict} · ${messages.length} msgs in context.`, 'info');
+
+  const { bubble } = appendMessage('ai', '');
+  isGenerating = true;
+  stopRequested = false;
+  setSendMode('stop');
+  userInput.disabled = true;
+
+  const t0 = performance.now();
+  let tokens = 0, current = '', lastPaint = 0, failure = null;
+
+  const scrollIfNear = () => {
+    if (chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 140)
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+  };
+  const paintLive = () => {
+    const prev = bubble.querySelector('details.thought-process');
+    const keepOpen = prev ? prev.open : true;
+    const { think, response } = parseThinking(current);
+    let html = '';
+    if (think) html += `<details class="thought-process"${keepOpen ? ' open' : ''}><summary>Thinking…</summary><div class="thought-content">${formatMarkdown(think)}</div></details>`;
+    if (response) html += formatMarkdown(response) + '<span class="caret"></span>';
+    else if (!think) html += '<p class="pending"><span class="caret"></span></p>';
+    const elapsed = (performance.now() - t0) / 1000;
+    if (tokens > 2) html += `<div class="response-metrics metrics-live"><span>⏱️ ${elapsed.toFixed(1)}s</span><span>⚡ ${(tokens / Math.max(elapsed, .001)).toFixed(1)} t/s</span></div>`;
+    bubble.innerHTML = html;
+    scrollIfNear();
+  };
+
+  try {
+    const result = await wllama.createChatCompletion(messages, {
+      nPredict,
+      sampling: { temp, top_p: topP, top_k: topK, penalty_repeat: repPenalty, penalty_last_n: 64 },
+      onNewToken: (token, piece, currentText, optionals) => {
+        tokens++;
+        current = currentText;
+        if (stopRequested) { try { optionals?.abortSignal?.(); } catch {} return; }
+        const now = performance.now();
+        if (now - lastPaint > 90) { lastPaint = now; paintLive(); }
+      },
+    });
+    if (typeof result === 'string' && result.trim()) current = result;
+  } catch (err) {
+    if (stopRequested) sysLog('Generation stopped by user.', 'warn');
+    else { failure = err?.message || String(err); sysLog(`INFERENCE ERROR: ${failure}`, 'error'); }
+  }
+
+  const duration = (performance.now() - t0) / 1000;
+  const { think, response } = parseThinking(current);
+  let final = '';
+  if (think) final += `<details class="thought-process"><summary>Thought process · ${duration.toFixed(1)}s</summary><div class="thought-content">${formatMarkdown(think)}</div></details>`;
+  if (response) final += formatMarkdown(response);
+  if (!think && !response) final += `<p class="pending"><em>${failure ? 'Error: ' + escapeHtml(failure) : 'No output generated.'}</em></p>`;
+  else if (failure) final += `<p style="color:var(--danger)"><em>Error: ${escapeHtml(failure)}</em></p>`;
+  final += `<div class="response-metrics"><span>⏱️ ${duration.toFixed(1)}s</span><span>⚡ ${duration > 0 ? (tokens / duration).toFixed(1) : '0'} t/s</span><span>🔢 ${tokens} tok</span></div>`;
+  bubble.innerHTML = final;
+
+  if (current.trim()) {
+    history.push({ role: 'assistant', content: current });
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn'; btn.type = 'button'; btn.textContent = 'Copy';
+    btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(current); btn.textContent = 'Copied ✓'; }
+      catch { btn.textContent = 'Copy failed'; }
+      setTimeout(() => (btn.textContent = 'Copy'), 1500);
+    });
+    bubble.appendChild(btn);
+  }
+
+  sysLog(`Done: ${tokens} tokens in ${duration.toFixed(1)}s.`, 'info');
+  isGenerating = false;
+  userInput.disabled = false;
+  setSendMode('send');
+  userInput.focus();
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+/* ================= EVENTS ================= */
+sendBtn.addEventListener('click', () => {
+  if (isGenerating) { stopRequested = true; sendBtn.disabled = true; sysLog('Stop requested…', 'warn'); }
+  else handleSendMessage();
+});
+userInput.addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+  if (!isGenerating) setSendMode('send');
+});
+userInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!isGenerating && !sendBtn.disabled) handleSendMessage();
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!settingsOverlay.hidden) { closeSettings(); return; }  // Esc closes settings first…
+  if (isGenerating) { stopRequested = true; sendBtn.disabled = true; sysLog('Stop requested…', 'warn'); } // …then stops generation
+});
+newChatBtn.addEventListener('click', () => {
+  if (!wllama) { sysLog('No model loaded yet.', 'warn'); return; }
+  if (isGenerating) { sysLog('Stop the current generation first.', 'warn'); return; }
+  history = [];
+  showNote(`Fresh context — <strong>${escapeHtml(modelInfo.name)}</strong>`);
+  sysLog('Chat history cleared.', 'info');
+});
+
+/* ================= STARTUP ================= */
+setSendMode('send');
+if (!window.crossOriginIsolated) {
+  settings.engine = 'singlethread';
+  const mt = engineSelect.querySelector('option[value="multithread"]');
+  if (mt) { mt.disabled = true; mt.textContent = '🧵 Multi-Thread (needs COOP/COEP)'; }
+}
+syncSettingsUI();
+
+sysLog('Nexus Studio initialized.', 'system');
+sysLog(`wllama pinned to v${WLLAMA_VERSION} — latest releases changed the pathConfig schema; update WASM_CONFIG if you unpin.`, 'info');
+sysLog(`Default preset: ${settings.preset} (${settings.nCtx} ctx · ${settings.nPredict} new) · temp ${settings.temp.toFixed(2)} (global).`, 'info');
+if (window.crossOriginIsolated) {
+  sysLog('Cross-origin isolated: YES — multi-thread available.', 'success');
+} else {
+  sysLog('Cross-origin isolated: NO — falling back to single-thread.', 'warn');
+}
+sysLog(`Logical cores: ${navigator.hardwareConcurrency || 'unknown'}`);
+if (location.protocol === 'file:') sysLog('Served from file:// — use http(s), see the note in the chat area.', 'warn');
+    </script>
+</body>
+
+</html>
