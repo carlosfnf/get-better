@@ -1,230 +1,1207 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nexus GGUF Local Studio</title>
-<style>
-:root{
-  --bg-base:#0B0E14; --bg-surface:#151923; --bg-surface-hover:#1E2433;
-  --border:#2A3143; --text-main:#E2E8F0; --text-muted:#94A3B8;
-  --accent-primary:#6366F1; --accent-glow:rgba(99,102,241,.4);
-  --accent-secondary:#06B6D4; --danger:#F43F5E; --success:#10B981; --warning:#F59E0B;
-}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-body,html{margin:0;padding:0;height:100%;background:var(--bg-base);color:var(--text-main);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;overflow:hidden;display:flex}
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:#475569}
-#app{display:flex;width:100%;height:100%}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus GGUF Local Studio</title>
+    <style>
+        :root {
+            --bg-base: #0B0E14;
+            --bg-surface: #151923;
+            --bg-surface-hover: #1E2433;
+            --border: #2A3143;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+            --accent-primary: #6366F1;
+            --accent-glow: rgba(99, 102, 241, .4);
+            --accent-secondary: #06B6D4;
+            --danger: #F43F5E;
+            --success: #10B981;
+            --warning: #F59E0B;
+        }
 
-#sidebar{width:320px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:10;min-height:0;overflow:hidden}
-.brand-header{padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
-.brand-header h1{margin:0;font-size:1.2rem;font-weight:700;background:linear-gradient(90deg,var(--accent-secondary),var(--accent-primary));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.5px}
-#modelStatus{margin:6px 0 0;font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Fira Code','Courier New',monospace}
+        * {
+            box-sizing: border-box
+        }
 
-.control-panel{padding:16px 20px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--border);flex-shrink:0}
-.file-upload-btn{background:linear-gradient(135deg,var(--accent-primary),#8B5CF6);color:#fff;border:none;padding:11px;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;text-align:center;transition:all .2s;display:block;width:100%;box-shadow:0 4px 15px rgba(99,102,241,.2)}
-.file-upload-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.4)}
-.file-upload-btn input{display:none}
-.file-hint{font-size:.66rem;color:var(--text-muted);text-align:center;margin-top:-6px}
-.settings-btn{position:relative;width:100%;background:var(--bg-base);border:1px solid var(--border);color:var(--text-main);padding:11px;border-radius:8px;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .15s}
-.settings-btn:hover{border-color:var(--accent-primary);background:var(--bg-surface-hover)}
-.settings-dot{position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:var(--warning);box-shadow:0 0 6px var(--warning);display:none}
-.settings-dot.show{display:block}
-#systemPrompt{width:100%;background:var(--bg-base);color:var(--text-main);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:.82rem;resize:vertical;min-height:36px;max-height:140px;outline:none}
-#systemPrompt:focus{border-color:var(--accent-primary)}
-#systemPrompt::placeholder{color:#475569}
-.ghost-btn{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:8px;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s}
-.ghost-btn:hover{border-color:var(--danger);color:var(--danger)}
+        [hidden] {
+            display: none !important
+        }
 
-#progress-container{padding:14px 20px;border-bottom:1px solid var(--border);display:none;flex-shrink:0}
-.progress-track{background:var(--bg-base);height:6px;border-radius:3px;overflow:hidden;margin-bottom:8px;position:relative}
-.progress-fill{background:var(--accent-secondary);height:100%;width:0%;transition:width .2s ease}
-.progress-fill.indeterminate{width:30%!important;animation:indeterminate 1.1s ease-in-out infinite}
-@keyframes indeterminate{0%{margin-left:-30%}100%{margin-left:100%}}
-.progress-label{font-size:.72rem;color:var(--accent-secondary);font-weight:600;text-align:center;text-transform:uppercase;letter-spacing:.5px}
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: var(--bg-base);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex
+        }
 
-.terminal-header{padding:10px 20px;font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);flex-shrink:0}
-#diagnostic-hud{flex:1;min-height:60px;overflow-y:auto;padding:12px 20px;background:#080A0F;font-family:'Fira Code','Courier New',monospace;font-size:.72rem;line-height:1.55}
-.log-error{color:var(--danger)} .log-warn{color:var(--warning)} .log-info{color:var(--accent-secondary)} .log-system{color:var(--text-muted)} .log-success{color:var(--success)}
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px
+        }
 
-#main-chat{flex:1;display:flex;flex-direction:column;background:var(--bg-base);position:relative;min-width:0}
-#chat-history{flex:1;overflow-y:auto;padding:30px;display:flex;flex-direction:column;gap:22px}
+        ::-webkit-scrollbar-track {
+            background: transparent
+        }
 
-.empty-state{margin:auto;text-align:center;max-width:460px;color:var(--text-muted);animation:fadeIn .4s ease-out}
-.empty-state .empty-icon{font-size:2.4rem;margin-bottom:6px;background:linear-gradient(135deg,var(--accent-secondary),var(--accent-primary));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.empty-state h2{margin:0 0 6px;color:var(--text-main);font-size:1.3rem}
-.empty-state>p{margin:0 0 18px;font-size:.9rem}
-.steps{text-align:left;display:inline-flex;flex-direction:column;gap:8px}
-.steps div{display:flex;align-items:center;gap:10px;font-size:.85rem}
-.steps span{width:22px;height:22px;flex-shrink:0;border-radius:50%;background:var(--bg-surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:var(--accent-secondary)}
-.empty-state details{text-align:left;margin-top:18px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:.8rem}
-.empty-state summary{cursor:pointer;color:var(--warning);font-weight:600;user-select:none}
-.empty-state details p{margin:8px 0 4px;font-size:.78rem}
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px
+        }
 
-.system-note{margin:0 auto;max-width:850px;width:100%;text-align:center;font-size:.72rem;color:var(--text-muted);background:var(--bg-surface);border:1px solid var(--border);padding:8px 14px;border-radius:20px;animation:fadeIn .3s ease-out}
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569
+        }
 
-.message{display:flex;width:100%;max-width:850px;margin:0 auto;gap:16px;animation:fadeIn .25s ease-out}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.message.user{flex-direction:row-reverse}
-.avatar{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;font-weight:700}
-.user .avatar{background:var(--bg-surface-hover)}
-.ai .avatar{background:linear-gradient(135deg,var(--accent-secondary),var(--accent-primary));color:#fff}
-.bubble{max-width:calc(100% - 52px);padding:12px 18px;border-radius:12px;font-size:.95rem;line-height:1.6;word-wrap:break-word;overflow-x:auto}
-.user .bubble{background:var(--bg-surface);border:1px solid var(--border);border-top-right-radius:2px}
-.ai .bubble{background:transparent;padding-top:4px}
+        #app {
+            display: flex;
+            width: 100%;
+            height: 100%
+        }
 
-.bubble p{margin:0 0 12px}
-.bubble>p:last-of-type{margin-bottom:0}
-.bubble h3,.bubble h4,.bubble h5{margin:14px 0 8px;line-height:1.3}
-.bubble h3{font-size:1.08rem}.bubble h4{font-size:.98rem}.bubble h5{font-size:.9rem}
-.bubble ul,.bubble ol{margin:0 0 12px;padding-left:22px}
-.bubble li{margin:4px 0}
-.bubble blockquote{margin:0 0 12px;padding:6px 14px;border-left:3px solid var(--accent-primary);color:var(--text-muted);background:rgba(99,102,241,.06);border-radius:0 6px 6px 0}
-pre{background:#000;border:1px solid var(--border);padding:14px;border-radius:8px;overflow-x:auto;font-family:'Fira Code',monospace;font-size:.83rem;margin:12px 0}
-code{background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px;font-size:.85em;color:#E2E8F0}
-pre code{background:none;padding:0;color:#60A5FA}
+        #sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            min-height: 0;
+            overflow: hidden
+        }
 
-details.thought-process{background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden}
-details.thought-process summary{padding:9px 16px;font-size:.8rem;font-weight:600;color:var(--text-muted);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.2);transition:color .2s}
-details.thought-process summary::-webkit-details-marker{display:none}
-details.thought-process summary:hover{color:var(--text-main)}
-details.thought-process summary::before{content:"🧠"}
-.thought-content{padding:14px 16px;font-family:'Fira Code',monospace;font-size:.8rem;color:#94A3B8;border-top:1px solid var(--border);line-height:1.5;max-height:320px;overflow-y:auto}
+        .brand-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
 
-.response-metrics{display:inline-flex;gap:12px;margin-top:12px;padding:5px 12px;background:var(--bg-surface);border:1px solid var(--border);border-radius:20px;font-size:.72rem;font-family:'Fira Code',monospace;color:var(--text-muted)}
-.metrics-live{color:var(--accent-secondary);border-color:rgba(6,182,212,.35)}
-.pending{color:var(--text-muted)}
-.caret{display:inline-block;width:8px;height:1em;margin-left:2px;background:var(--accent-secondary);border-radius:2px;vertical-align:text-bottom;animation:blink 1s steps(2,start) infinite}
-@keyframes blink{to{visibility:hidden}}
-.copy-btn{margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:.68rem;padding:3px 10px;border-radius:12px;cursor:pointer;transition:all .15s}
-.copy-btn:hover{color:var(--accent-secondary);border-color:var(--accent-secondary)}
+        .brand-header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -.5px
+        }
 
-.input-wrapper{padding:20px 30px;background:linear-gradient(to top,var(--bg-base) 70%,transparent);display:flex;justify-content:center;flex-shrink:0}
-.input-box{width:100%;max-width:850px;background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;display:flex;align-items:flex-end;padding:8px 12px;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.2);transition:border-color .2s}
-.input-box:focus-within{border-color:var(--accent-primary)}
-textarea{flex:1;background:transparent;border:none;color:var(--text-main);padding:8px;font-family:inherit;font-size:1rem;resize:none;outline:none;max-height:150px;line-height:1.5}
-textarea::placeholder{color:#475569}
-.send-btn{background:var(--accent-primary);color:#fff;border:none;width:36px;height:36px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;margin-bottom:2px}
-.send-btn:disabled{background:var(--border);color:#475569;cursor:not-allowed;transform:none}
-.send-btn:not(:disabled):hover{background:#4F46E5;transform:scale(1.05)}
-.send-btn.stopping{background:var(--danger)}
-.send-btn.stopping:not(:disabled):hover{background:#E11D48}
+        #modelStatus {
+            margin: 6px 0 0;
+            font-size: .72rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: 'Fira Code', 'Courier New', monospace
+        }
 
-.think-toggle{background:var(--bg-base);border:1px solid var(--border);color:var(--text-muted);padding:6px 10px;border-radius:10px;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .15s;flex-shrink:0;margin-bottom:2px;font-family:inherit;white-space:nowrap}
-.think-toggle:hover{border-color:var(--accent-secondary)}
-.think-toggle.on{color:var(--accent-secondary);border-color:rgba(6,182,212,.45);background:rgba(6,182,212,.1)}
-.think-toggle.off{opacity:.55}
+        .control-panel {
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
 
-.slider-row{margin-bottom:4px}
-.slider-row label{display:flex;justify-content:space-between;align-items:baseline;font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;font-weight:700}
-.slider-row label span{color:var(--accent-secondary);font-family:'Fira Code',monospace;font-size:.75rem}
-.slider-row input[type=range]{width:100%;accent-color:var(--accent-primary);cursor:pointer}
-input[type=range]:disabled{opacity:.45;cursor:not-allowed}
-.slider-row.locked{opacity:.6}
-.lock-note{display:none;font-size:.68rem;color:var(--warning);margin-top:4px}
-.slider-row.locked .lock-note{display:block}
+        .file-upload-btn {
+            background: linear-gradient(135deg, var(--accent-primary), #8B5CF6);
+            color: #fff;
+            border: none;
+            padding: 11px;
+            border-radius: 8px;
+            font-size: .9rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all .2s;
+            display: block;
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, .2)
+        }
 
-.settings-overlay{position:fixed;inset:0;background:rgba(5,8,14,.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:100;animation:fadeIn .15s ease-out}
-.settings-modal{width:min(580px,calc(100vw - 32px));max-height:calc(100vh - 48px);display:flex;flex-direction:column;background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.55);animation:pop .18s ease-out;overflow:hidden}
-@keyframes pop{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
-.settings-header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
-.settings-header h2{margin:0;font-size:1.05rem}
-.icon-close{background:transparent;border:none;color:var(--text-muted);font-size:1rem;cursor:pointer;padding:4px 8px;border-radius:6px}
-.icon-close:hover{color:var(--text-main);background:var(--bg-surface-hover)}
-.settings-body{flex:1;overflow-y:auto;min-height:0}
-.settings-section{padding:16px 20px;border-bottom:1px solid var(--border)}
-.settings-section:last-child{border-bottom:none}
-.section-label{font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
-.settings-hint{font-size:.72rem;color:var(--text-muted);margin:8px 0 0;line-height:1.45}
+        .file-upload-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, .4)
+        }
 
-.preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-@media (max-width:420px){.preset-grid{grid-template-columns:1fr}}
-.preset-btn{background:var(--bg-base);border:1px solid var(--border);border-radius:10px;padding:12px 8px;cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:center;text-align:center;color:var(--text-muted);transition:all .15s;font-family:inherit}
-.preset-btn:hover{border-color:var(--accent-primary);color:var(--text-main)}
-.preset-btn.active{border-color:var(--accent-primary);background:rgba(99,102,241,.12);box-shadow:0 0 0 1px var(--accent-primary) inset}
-.preset-name{font-size:.9rem;font-weight:700;color:var(--text-main)}
-.preset-btn.active .preset-name::after{content:" ✓";color:var(--accent-secondary)}
-.preset-spec{font-size:.68rem;font-family:'Fira Code',monospace;color:var(--accent-secondary)}
-.preset-desc{font-size:.66rem}
+        .file-upload-btn input {
+            display: none
+        }
 
-.adv-toggle-row{display:flex;gap:14px;align-items:center}
-.switch{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
-.switch input{opacity:0;width:0;height:0}
-.switch .knob{position:absolute;inset:0;background:var(--bg-base);border:1px solid var(--border);border-radius:12px;transition:.2s;cursor:pointer}
-.switch .knob::before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:var(--text-muted);border-radius:50%;transition:.2s}
-.switch input:checked + .knob{background:var(--accent-primary);border-color:var(--accent-primary)}
-.switch input:checked + .knob::before{transform:translateX(20px);background:#fff}
+        .file-hint {
+            font-size: .66rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: -6px;
+            line-height: 1.4
+        }
 
-.advanced-section{background:rgba(0,0,0,.18)}
-.advanced-section .settings-section{border-bottom:1px solid var(--border)}
-.advanced-section .settings-section:last-child{border-bottom:none}
-.advanced-section .slider-row{margin-bottom:14px}
-.advanced-section .slider-row:last-child{margin-bottom:0}
+        .settings-btn {
+            position: relative;
+            width: 100%;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 11px;
+            border-radius: 8px;
+            font-size: .88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s
+        }
 
-.settings-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
-.done-btn{background:linear-gradient(135deg,var(--accent-primary),#8B5CF6);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-weight:600;font-size:.88rem;cursor:pointer;transition:all .15s}
-.done-btn:hover{transform:translateY(-1px)}
-.reload-hint{display:flex;align-items:center;gap:10px;font-size:.73rem;color:var(--warning);font-family:'Fira Code',monospace;flex-wrap:wrap}
-.reload-btn{background:transparent;border:1px solid var(--warning);color:var(--warning);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:.73rem;font-weight:600;font-family:inherit;transition:all .15s}
-.reload-btn:hover{background:rgba(245,158,11,.12)}
+        .settings-btn:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-surface-hover)
+        }
 
-@media (max-width:768px){
-  #app{flex-direction:column}
-  #sidebar{width:100%;max-height:46%;border-right:none;border-bottom:1px solid var(--border)}
-  .message{max-width:100%}
-  #chat-history{padding:16px}
-  .input-wrapper{padding:12px 16px}
-}
-</style>
+        .settings-dot {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--warning);
+            box-shadow: 0 0 6px var(--warning);
+            display: none
+        }
+
+        .settings-dot.show {
+            display: block
+        }
+
+        #systemPrompt {
+            width: 100%;
+            background: var(--bg-base);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-family: inherit;
+            font-size: .82rem;
+            resize: vertical;
+            min-height: 36px;
+            max-height: 140px;
+            outline: none
+        }
+
+        #systemPrompt:focus {
+            border-color: var(--accent-primary)
+        }
+
+        #systemPrompt::placeholder {
+            color: #475569
+        }
+
+        .ghost-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 8px;
+            border-radius: 8px;
+            font-size: .82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .ghost-btn:hover {
+            border-color: var(--accent-secondary);
+            color: var(--accent-secondary)
+        }
+
+        .ghost-btn:disabled {
+            opacity: .35;
+            cursor: not-allowed
+        }
+
+        #progress-container {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: none;
+            flex-shrink: 0
+        }
+
+        .progress-track {
+            background: var(--bg-base);
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            position: relative
+        }
+
+        .progress-fill {
+            background: var(--accent-secondary);
+            height: 100%;
+            width: 0%;
+            transition: width .2s ease
+        }
+
+        .progress-fill.indeterminate {
+            width: 30% !important;
+            animation: indeterminate 1.1s ease-in-out infinite
+        }
+
+        @keyframes indeterminate {
+            0% {
+                margin-left: -30%
+            }
+
+            100% {
+                margin-left: 100%
+            }
+        }
+
+        .progress-label {
+            font-size: .72rem;
+            color: var(--accent-secondary);
+            font-weight: 600;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: .5px
+        }
+
+        .terminal-header {
+            padding: 10px 20px;
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
+
+        #diagnostic-hud {
+            flex: 1;
+            min-height: 60px;
+            overflow-y: auto;
+            padding: 12px 20px;
+            background: #080A0F;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: .72rem;
+            line-height: 1.55
+        }
+
+        .log-error {
+            color: var(--danger)
+        }
+
+        .log-warn {
+            color: var(--warning)
+        }
+
+        .log-info {
+            color: var(--accent-secondary)
+        }
+
+        .log-system {
+            color: var(--text-muted)
+        }
+
+        .log-success {
+            color: var(--success)
+        }
+
+        #main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-base);
+            position: relative;
+            min-width: 0
+        }
+
+        #chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px
+        }
+
+        .empty-state {
+            margin: auto;
+            text-align: center;
+            max-width: 460px;
+            color: var(--text-muted);
+            animation: fadeIn .4s ease-out
+        }
+
+        .empty-state .empty-icon {
+            font-size: 2.4rem;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        .empty-state h2 {
+            margin: 0 0 6px;
+            color: var(--text-main);
+            font-size: 1.3rem
+        }
+
+        .empty-state>p {
+            margin: 0 0 18px;
+            font-size: .9rem
+        }
+
+        .steps {
+            text-align: left;
+            display: inline-flex;
+            flex-direction: column;
+            gap: 8px
+        }
+
+        .steps div {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: .85rem
+        }
+
+        .steps span {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--accent-secondary)
+        }
+
+        .empty-state details {
+            text-align: left;
+            margin-top: 18px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: .8rem
+        }
+
+        .empty-state summary {
+            cursor: pointer;
+            color: var(--warning);
+            font-weight: 600;
+            user-select: none
+        }
+
+        .empty-state details p {
+            margin: 8px 0 4px;
+            font-size: .78rem
+        }
+
+        .system-note {
+            margin: 0 auto;
+            max-width: 850px;
+            width: 100%;
+            text-align: center;
+            font-size: .72rem;
+            color: var(--text-muted);
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: 20px;
+            animation: fadeIn .3s ease-out
+        }
+
+        .message {
+            display: flex;
+            width: 100%;
+            max-width: 850px;
+            margin: 0 auto;
+            gap: 16px;
+            animation: fadeIn .25s ease-out
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            font-weight: 700
+        }
+
+        .user .avatar {
+            background: var(--bg-surface-hover)
+        }
+
+        .ai .avatar {
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+            color: #fff
+        }
+
+        .bubble {
+            max-width: calc(100% - 52px);
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-size: .95rem;
+            line-height: 1.6;
+            word-wrap: break-word;
+            overflow-x: auto
+        }
+
+        .user .bubble {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-top-right-radius: 2px
+        }
+
+        .ai .bubble {
+            background: transparent;
+            padding-top: 4px
+        }
+
+        .bubble p {
+            margin: 0 0 12px
+        }
+
+        .bubble>p:last-of-type {
+            margin-bottom: 0
+        }
+
+        .bubble h3,
+        .bubble h4,
+        .bubble h5 {
+            margin: 14px 0 8px;
+            line-height: 1.3
+        }
+
+        .bubble h3 {
+            font-size: 1.08rem
+        }
+
+        .bubble h4 {
+            font-size: .98rem
+        }
+
+        .bubble h5 {
+            font-size: .9rem
+        }
+
+        .bubble ul,
+        .bubble ol {
+            margin: 0 0 12px;
+            padding-left: 22px
+        }
+
+        .bubble li {
+            margin: 4px 0
+        }
+
+        .bubble blockquote {
+            margin: 0 0 12px;
+            padding: 6px 14px;
+            border-left: 3px solid var(--accent-primary);
+            color: var(--text-muted);
+            background: rgba(99, 102, 241, .06);
+            border-radius: 0 6px 6px 0
+        }
+
+        pre {
+            background: #000;
+            border: 1px solid var(--border);
+            padding: 14px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: .83rem;
+            margin: 12px 0
+        }
+
+        code {
+            background: rgba(255, 255, 255, .1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: .85em;
+            color: #E2E8F0
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #60A5FA
+        }
+
+        details.thought-process {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            overflow: hidden
+        }
+
+        details.thought-process summary {
+            padding: 9px 16px;
+            font-size: .8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, .2);
+            transition: color .2s
+        }
+
+        details.thought-process summary::-webkit-details-marker {
+            display: none
+        }
+
+        details.thought-process summary:hover {
+            color: var(--text-main)
+        }
+
+        details.thought-process summary::before {
+            content: "🧠"
+        }
+
+        .thought-content {
+            padding: 14px 16px;
+            font-family: 'Fira Code', monospace;
+            font-size: .8rem;
+            color: #94A3B8;
+            border-top: 1px solid var(--border);
+            line-height: 1.5;
+            max-height: 320px;
+            overflow-y: auto
+        }
+
+        .response-metrics {
+            display: inline-flex;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 5px 12px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: .72rem;
+            font-family: 'Fira Code', monospace;
+            color: var(--text-muted)
+        }
+
+        .metrics-live {
+            color: var(--accent-secondary);
+            border-color: rgba(6, 182, 212, .35)
+        }
+
+        .pending {
+            color: var(--text-muted)
+        }
+
+        .caret {
+            display: inline-block;
+            width: 8px;
+            height: 1em;
+            margin-left: 2px;
+            background: var(--accent-secondary);
+            border-radius: 2px;
+            vertical-align: text-bottom;
+            animation: blink 1s steps(2, start) infinite
+        }
+
+        @keyframes blink {
+            to {
+                visibility: hidden
+            }
+        }
+
+        .copy-btn {
+            margin-top: 10px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: .68rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .copy-btn:hover {
+            color: var(--accent-secondary);
+            border-color: var(--accent-secondary)
+        }
+
+        .input-wrapper {
+            padding: 20px 30px;
+            background: linear-gradient(to top, var(--bg-base) 70%, transparent);
+            display: flex;
+            justify-content: center;
+            flex-shrink: 0
+        }
+
+        .input-box {
+            width: 100%;
+            max-width: 850px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            display: flex;
+            align-items: flex-end;
+            padding: 8px 12px;
+            gap: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .2);
+            transition: border-color .2s
+        }
+
+        .input-box:focus-within {
+            border-color: var(--accent-primary)
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            padding: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: none;
+            outline: none;
+            max-height: 150px;
+            line-height: 1.5
+        }
+
+        textarea::placeholder {
+            color: #475569
+        }
+
+        .send-btn {
+            background: var(--accent-primary);
+            color: #fff;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .2s;
+            flex-shrink: 0;
+            margin-bottom: 2px
+        }
+
+        .send-btn:disabled {
+            background: var(--border);
+            color: #475569;
+            cursor: not-allowed;
+            transform: none
+        }
+
+        .send-btn:not(:disabled):hover {
+            background: #4F46E5;
+            transform: scale(1.05)
+        }
+
+        .send-btn.stopping {
+            background: var(--danger)
+        }
+
+        .send-btn.stopping:not(:disabled):hover {
+            background: #E11D48
+        }
+
+        .think-toggle {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 6px 10px;
+            border-radius: 10px;
+            font-size: .7rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .15s;
+            flex-shrink: 0;
+            margin-bottom: 2px;
+            font-family: inherit;
+            white-space: nowrap
+        }
+
+        .think-toggle:hover {
+            border-color: var(--accent-secondary)
+        }
+
+        .think-toggle.on {
+            color: var(--accent-secondary);
+            border-color: rgba(6, 182, 212, .45);
+            background: rgba(6, 182, 212, .1)
+        }
+
+        .think-toggle.off {
+            opacity: .55
+        }
+
+        .slider-row {
+            margin-bottom: 4px
+        }
+
+        .slider-row label,
+        .slider-row .lab {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: .7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 5px;
+            font-weight: 700
+        }
+
+        .slider-row label span,
+        .slider-row .lab span {
+            color: var(--accent-secondary);
+            font-family: 'Fira Code', monospace;
+            font-size: .75rem
+        }
+
+        .slider-row input[type=range] {
+            width: 100%;
+            accent-color: var(--accent-primary);
+            cursor: pointer
+        }
+
+        input[type=range]:disabled {
+            opacity: .45;
+            cursor: not-allowed
+        }
+
+        .slider-row.locked {
+            opacity: .6
+        }
+
+        .lock-note {
+            display: none;
+            font-size: .68rem;
+            color: var(--warning);
+            margin-top: 4px
+        }
+
+        .slider-row.locked .lock-note {
+            display: block
+        }
+
+        .perf-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: .78rem;
+            color: var(--text-muted);
+            margin: 10px 0 12px;
+            cursor: pointer
+        }
+
+        .perf-check input {
+            accent-color: var(--accent-primary);
+            width: 15px;
+            height: 15px;
+            cursor: pointer
+        }
+
+        .settings-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 8, 14, .72);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            animation: fadeIn .15s ease-out
+        }
+
+        .settings-modal {
+            width: min(580px, calc(100vw - 32px));
+            max-height: calc(100vh - 48px);
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+            animation: pop .18s ease-out;
+            overflow: hidden
+        }
+
+        @keyframes pop {
+            from {
+                transform: scale(.96);
+                opacity: 0
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1
+            }
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0
+        }
+
+        .settings-header h2 {
+            margin: 0;
+            font-size: 1.05rem
+        }
+
+        .icon-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px
+        }
+
+        .icon-close:hover {
+            color: var(--text-main);
+            background: var(--bg-surface-hover)
+        }
+
+        .settings-body {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0
+        }
+
+        .settings-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border)
+        }
+
+        .settings-section:last-child {
+            border-bottom: none
+        }
+
+        .section-label {
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px
+        }
+
+        .settings-hint {
+            font-size: .72rem;
+            color: var(--text-muted);
+            margin: 8px 0 0;
+            line-height: 1.45
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px
+        }
+
+        @media (max-width:420px) {
+            .preset-grid {
+                grid-template-columns: 1fr
+            }
+        }
+
+        .preset-btn {
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            align-items: center;
+            text-align: center;
+            color: var(--text-muted);
+            transition: all .15s;
+            font-family: inherit
+        }
+
+        .preset-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-main)
+        }
+
+        .preset-btn.active {
+            border-color: var(--accent-primary);
+            background: rgba(99, 102, 241, .12);
+            box-shadow: 0 0 0 1px var(--accent-primary) inset
+        }
+
+        .preset-name {
+            font-size: .9rem;
+            font-weight: 700;
+            color: var(--text-main)
+        }
+
+        .preset-btn.active .preset-name::after {
+            content: " ✓";
+            color: var(--accent-secondary)
+        }
+
+        .preset-spec {
+            font-size: .68rem;
+            font-family: 'Fira Code', monospace;
+            color: var(--accent-secondary)
+        }
+
+        .preset-desc {
+            font-size: .66rem
+        }
+
+        .adv-toggle-row {
+            display: flex;
+            gap: 14px;
+            align-items: center
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0
+        }
+
+        .switch .knob {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: .2s;
+            cursor: pointer
+        }
+
+        .switch .knob::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            left: 3px;
+            top: 3px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            transition: .2s
+        }
+
+        .switch input:checked+.knob {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary)
+        }
+
+        .switch input:checked+.knob::before {
+            transform: translateX(20px);
+            background: #fff
+        }
+
+        .advanced-section {
+            background: rgba(0, 0, 0, .18)
+        }
+
+        .advanced-section .settings-section {
+            border-bottom: 1px solid var(--border)
+        }
+
+        .advanced-section .settings-section:last-child {
+            border-bottom: none
+        }
+
+        .advanced-section .slider-row {
+            margin-bottom: 14px
+        }
+
+        .advanced-section .slider-row:last-child {
+            margin-bottom: 0
+        }
+
+        .settings-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            flex-wrap: wrap
+        }
+
+        .done-btn {
+            background: linear-gradient(135deg, var(--accent-primary), #8B5CF6);
+            color: #fff;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: .88rem;
+            cursor: pointer;
+            transition: all .15s
+        }
+
+        .done-btn:hover {
+            transform: translateY(-1px)
+        }
+
+        .reload-hint {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: .73rem;
+            color: var(--warning);
+            font-family: 'Fira Code', monospace;
+            flex-wrap: wrap
+        }
+
+        .reload-btn {
+            background: transparent;
+            border: 1px solid var(--warning);
+            color: var(--warning);
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: .73rem;
+            font-weight: 600;
+            font-family: inherit;
+            transition: all .15s
+        }
+
+        .reload-btn:hover {
+            background: rgba(245, 158, 11, .12)
+        }
+
+        @media (max-width:768px) {
+            #app {
+                flex-direction: column
+            }
+
+            #sidebar {
+                width: 100%;
+                max-height: 46%;
+                border-right: none;
+                border-bottom: 1px solid var(--border)
+            }
+
+            .message {
+                max-width: 100%
+            }
+
+            #chat-history {
+                padding: 16px
+            }
+
+            .input-wrapper {
+                padding: 12px 16px
+            }
+        }
+    </style>
 </head>
+
 <body>
-<div id="app">
-  <aside id="sidebar">
-    <div class="brand-header">
-      <h1>NEXUS STUDIO</h1>
-      <p id="modelStatus">no model loaded</p>
-    </div>
+    <div id="app">
+        <aside id="sidebar">
+            <div class="brand-header">
+                <h1>NEXUS STUDIO</h1>
+                <p id="modelStatus">no model loaded</p>
+            </div>
 
-    <div class="control-panel">
-      <label class="file-upload-btn"><span>Load .GGUF Model</span><input type="file" id="ggufInput" accept=".gguf,.bin" multiple></label>
-      <div class="file-hint">Split models: select all shards together (max ~2 GB per file)</div>
-      <button id="settingsBtn" class="settings-btn" type="button">⚙️ Settings<span id="settingsDot" class="settings-dot"></span></button>
-      <textarea id="systemPrompt" placeholder="System prompt (optional)…"></textarea>
-      <button id="newChatBtn" class="ghost-btn" type="button">🗑 New Chat</button>
-    </div>
+            <div class="control-panel">
+                <label class="file-upload-btn"><span>Load .GGUF Model</span><input type="file" id="ggufInput" accept=".gguf,.bin" multiple></label>
+                <div class="file-hint">Split models: select all shards together.<br>File over ~2 GB? The ✂️ splitter will offer to split it into Downloads.
+                </div>
+                <button id="settingsBtn" class="settings-btn" type="button">⚙️ Settings<span id="settingsDot" class="settings-dot"></span></button>
+                <textarea id="systemPrompt" placeholder="System prompt (optional)…"></textarea>
+                <button id="newChatBtn" class="ghost-btn" type="button">🗑 New Chat</button>
+                <button id="benchBtn" class="ghost-btn" type="button" disabled>⚡ Speed Test</button>
+            </div>
 
-    <div id="progress-container">
-      <div class="progress-track"><div id="progress-bar" class="progress-fill"></div></div>
-      <div id="progress-text" class="progress-label">Awaiting model…</div>
-    </div>
+            <div id="progress-container">
+                <div class="progress-track">
+                    <div id="progress-bar" class="progress-fill"></div>
+                </div>
+                <div id="progress-text" class="progress-label">Awaiting model…</div>
+            </div>
 
-    <div class="terminal-header">System Diagnostics</div>
-    <div id="diagnostic-hud"></div>
-  </aside>
+            <div class="terminal-header">System Diagnostics</div>
+            <div id="diagnostic-hud"></div>
+        </aside>
 
-  <main id="main-chat">
-    <div id="chat-history">
-      <div class="empty-state" id="emptyState">
-        <div class="empty-icon">✦</div>
-        <h2>Nexus Studio</h2>
-        <p>Run GGUF models entirely in your browser. Nothing leaves this machine.</p>
-        <div class="steps">
-          <div><span>1</span> Open <strong>⚙️ Settings</strong> and pick a preset</div>
-          <div><span>2</span> Load a <code>.gguf</code> file from your drive</div>
-          <div><span>3</span> Chat — use the 🧠 button to toggle thinking on/off</div>
-        </div>
-        <details>
-          <summary>🚀 WebGPU = fast, no COOP/COEP needed</summary>
-          <p>If the HUD says WebGPU is available, pick the 🚀 engine in Settings → Advanced and restart — GPU inference works even in a plain about:blank tab, no special headers required.</p>
-        </details>
-        <details>
-          <summary>🧵 CPU multi-thread only (COOP/COEP)</summary>
-          <p>Only needed if you can't use WebGPU. Serve this file instead of opening it directly:</p>
-          <pre><code>// serve.mjs — run: node serve.mjs  →  http://localhost:8000
+        <main id="main-chat">
+            <div id="chat-history">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">✦</div>
+                    <h2>Nexus Studio</h2>
+                    <p>Run GGUF models entirely in your browser. Nothing leaves this machine.</p>
+                    <div class="steps">
+                        <div><span>1</span> Open <strong>⚙️ Settings</strong> and pick a preset</div>
+                        <div><span>2</span> Load a <code>.gguf</code> file from your drive</div>
+                        <div><span>3</span> Chat — 🧠 toggles thinking, ⚡ Speed Test measures tok/s</div>
+                    </div>
+                    <details>
+                        <summary>🚀 WebGPU = fast, no COOP/COEP needed</summary>
+                        <p>If the HUD says WebGPU is available, pick the 🚀 engine in Settings → Advanced and restart —
+                            GPU inference works even in a plain about:blank tab, no special headers required.</p>
+                    </details>
+                    <details>
+                        <summary>🧵 CPU multi-thread only (COOP/COEP)</summary>
+                        <p>Only needed if you can't use WebGPU. Serve this file instead of opening it directly:</p>
+                        <pre><code>// serve.mjs — run: node serve.mjs  →  http://localhost:8000
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 http.createServer(async (req, res) =&gt; {
@@ -237,130 +1214,180 @@ http.createServer(async (req, res) =&gt; {
     res.statusCode = 404; res.end('Not found');
   }
 }).listen(8000);</code></pre>
-        </details>
-      </div>
+                    </details>
+                </div>
+            </div>
+
+            <div class="input-wrapper">
+                <div class="input-box">
+                    <button id="thinkToggle" class="think-toggle on" type="button" aria-pressed="true">🧠 Thinking: ON</button>
+                    <textarea id="userInput" rows="1" disabled placeholder="Engine offline — load a model first."></textarea>
+                    <button id="sendBtn" class="send-btn" disabled title="Send"></button>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <div class="input-wrapper">
-      <div class="input-box">
-        <button id="thinkToggle" class="think-toggle on" type="button" aria-pressed="true">🧠 Thinking: ON</button>
-        <textarea id="userInput" rows="1" disabled placeholder="Engine offline — load a model first."></textarea>
-        <button id="sendBtn" class="send-btn" disabled title="Send"></button>
-      </div>
-    </div>
-  </main>
-</div>
+    <!-- ============ SETTINGS MODAL ============ -->
+    <div id="settingsOverlay" class="settings-overlay" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
+            <div class="settings-header">
+                <h2>⚙️ Settings</h2>
+                <button id="settingsClose" class="icon-close" type="button" title="Close">✕</button>
+            </div>
 
-<!-- ============ SETTINGS MODAL ============ -->
-<div id="settingsOverlay" class="settings-overlay" hidden>
-  <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
-    <div class="settings-header">
-      <h2>⚙️ Settings</h2>
-      <button id="settingsClose" class="icon-close" type="button" title="Close">✕</button>
-    </div>
-
-    <div class="settings-body">
-      <div class="settings-section">
-        <div class="section-label">Performance preset</div>
-        <div class="preset-grid">
-          <button type="button" class="preset-btn" data-preset="small">
+            <div class="settings-body">
+                <div class="settings-section">
+                    <div class="section-label">Performance preset</div>
+                    <div class="preset-grid">
+                        <button type="button" class="preset-btn" data-preset="small">
             <span class="preset-name">Small</span>
             <span class="preset-spec">4K ctx · 1K new</span>
             <span class="preset-desc">Fast · low RAM</span>
           </button>
-          <button type="button" class="preset-btn" data-preset="medium">
+                        <button type="button" class="preset-btn" data-preset="medium">
             <span class="preset-name">Medium</span>
             <span class="preset-spec">6K ctx · 2K new</span>
             <span class="preset-desc">Balanced</span>
           </button>
-          <button type="button" class="preset-btn" data-preset="big">
+                        <button type="button" class="preset-btn" data-preset="big">
             <span class="preset-name">Big</span>
             <span class="preset-spec">8K ctx · 4K new</span>
             <span class="preset-desc">Long reasoning</span>
           </button>
-        </div>
-        <p class="settings-hint">Sets context size and max new tokens. New tokens apply immediately; context size needs an engine restart if a model is already loaded. <strong>Temperature is never changed by presets.</strong></p>
-      </div>
+                    </div>
+                    <p class="settings-hint">Sets context size and max new tokens. New tokens apply immediately; context
+                        size needs an engine restart if a model is already loaded.
+                        <strong>Temperature is never changed by presets.</strong>
+                    </p>
+                </div>
 
-      <div class="settings-section">
-        <div class="section-label">Temperature</div>
-        <div class="slider-row locked" id="tempRow">
-          <label>Sampling temperature <span id="tempValue">0.60</span></label>
-          <input type="range" id="tempSlider" min="0" max="1.5" step="0.05" value="0.6" disabled>
-          <span class="lock-note">🔒 Locked — turn on Advanced mode to change</span>
-        </div>
-      </div>
+                <div class="settings-section">
+                    <div class="section-label">Temperature</div>
+                    <div class="slider-row locked" id="tempRow">
+                        <label>Sampling temperature <span id="tempValue">0.60</span></label>
+                        <input type="range" id="tempSlider" min="0" max="1.5" step="0.05" value="0.6" disabled>
+                        <span class="lock-note">🔒 Locked — turn on Advanced mode to change</span>
+                    </div>
+                </div>
 
-      <div class="settings-section adv-toggle-row">
-        <label class="switch">
+                <div class="settings-section adv-toggle-row">
+                    <label class="switch">
           <input type="checkbox" id="advancedToggle">
           <span class="knob"></span>
         </label>
-        <div>
-          <div class="section-label" style="margin:0">Advanced mode</div>
-          <p class="settings-hint" style="margin:2px 0 0">Manual sliders, sampling controls and engine selection</p>
-        </div>
-      </div>
+                    <div>
+                        <div class="section-label" style="margin:0">Advanced mode</div>
+                        <p class="settings-hint" style="margin:2px 0 0">Manual sliders, performance tuning and engine
+                            selection</p>
+                    </div>
+                </div>
 
-      <div id="advancedSection" class="advanced-section" hidden>
-        <div class="settings-section">
-          <div class="section-label">Engine</div>
-          <select id="engineSelect" class="styled-select">
+                <div id="advancedSection" class="advanced-section" hidden>
+                    <div class="settings-section">
+                        <div class="section-label">Engine</div>
+                        <select id="engineSelect" class="styled-select">
             <option value="webgpu">🚀 WebGPU (no COOP/COEP needed)</option>
             <option value="multithread">🧵 Multi-Thread CPU</option>
             <option value="singlethread">🐢 Single-Thread CPU</option>
           </select>
-          <p class="settings-hint">WebGPU uses your GPU and needs no special headers — works in about:blank. CPU multi-thread needs COOP/COEP. Engine choice applies on restart.</p>
-        </div>
+                        <p class="settings-hint">WebGPU uses your GPU and needs no special headers — works in
+                            about:blank. CPU multi-thread needs COOP/COEP. Engine choice applies on restart.</p>
+                    </div>
 
-        <div class="settings-section">
-          <div class="section-label">Context &amp; generation</div>
-          <div class="slider-row">
-            <label>Context size (tokens) <span id="ctxValue">6144</span></label>
-            <input type="range" id="ctxSlider" min="1024" max="16384" step="512" value="6144">
-          </div>
-          <div class="slider-row">
-            <label>Max new tokens <span id="predictValue">2048</span></label>
-            <input type="range" id="predictSlider" min="128" max="8192" step="128" value="2048">
-          </div>
-          <p class="settings-hint">Moving these off a preset marks it as custom. Context applies on restart.</p>
-        </div>
+                    <div class="settings-section">
+                        <div class="section-label">⚡ Token speed</div>
+                        <div class="slider-row" style="margin-bottom:12px">
+                            <div class="lab">KV cache <span id="kvLabel">q8_0</span></div>
+                            <input type="range" id="kvSlider" min="0" max="2" step="1" value="1">
+                        </div>
+                        <label class="perf-check"><input type="checkbox" id="faCheck" checked> Flash Attention <span style="opacity:.6">(required for quantized V-cache)</span></label>
+                        <div class="slider-row">
+                            <div class="lab">Prompt batch <span id="batchVal">2048</span></div>
+                            <input type="range" id="batchSlider" min="512" max="4096" step="256" value="2048">
+                        </div>
+                        <p class="settings-hint">KV cache q8_0 halves cache RAM and speeds up long-context decoding;
+                            batch 2048 speeds up prompt processing. If the engine rejects a combo (e.g. Flash Attention
+                            unsupported on WebGPU), it auto-retries with safe settings. Applies on restart — use ⚡ Speed
+                            Test before/after to compare.</p>
+                    </div>
 
-        <div class="settings-section">
-          <div class="section-label">Sampling</div>
-          <div class="slider-row">
-            <label>Top P <span id="topPValue">0.95</span></label>
-            <input type="range" id="topPSlider" min="0.1" max="1" step="0.05" value="0.95">
-          </div>
-          <div class="slider-row">
-            <label>Top K <span id="topKValue">40</span></label>
-            <input type="range" id="topKSlider" min="0" max="100" step="1" value="40">
-          </div>
-          <div class="slider-row">
-            <label>Repeat penalty <span id="penaltyValue">1.10</span></label>
-            <input type="range" id="penaltySlider" min="1" max="1.5" step="0.01" value="1.1">
-          </div>
+                    <div class="settings-section">
+                        <div class="section-label">Context &amp; generation</div>
+                        <div class="slider-row">
+                            <label>Context size (tokens) <span id="ctxValue">6144</span></label>
+                            <input type="range" id="ctxSlider" min="1024" max="16384" step="512" value="6144">
+                        </div>
+                        <div class="slider-row">
+                            <label>Max new tokens <span id="predictValue">2048</span></label>
+                            <input type="range" id="predictSlider" min="128" max="8192" step="128" value="2048">
+                        </div>
+                        <p class="settings-hint">Moving these off a preset marks it as custom. Context applies on
+                            restart.</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="section-label">Sampling</div>
+                        <div class="slider-row">
+                            <label>Top P <span id="topPValue">0.95</span></label>
+                            <input type="range" id="topPSlider" min="0.1" max="1" step="0.05" value="0.95">
+                        </div>
+                        <div class="slider-row">
+                            <label>Top K <span id="topKValue">40</span></label>
+                            <input type="range" id="topKSlider" min="0" max="100" step="1" value="40">
+                        </div>
+                        <div class="slider-row">
+                            <label>Repeat penalty <span id="penaltyValue">1.10</span></label>
+                            <input type="range" id="penaltySlider" min="1" max="1.5" step="0.01" value="1.1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-footer">
+                <div id="reloadHint" class="reload-hint" hidden>
+                    <span id="reloadHintText"></span>
+                    <button id="reloadModelBtn" class="reload-btn" type="button">♻ Restart Engine</button>
+                </div>
+                <button id="settingsDone" class="done-btn" type="button">Done</button>
+            </div>
         </div>
-      </div>
     </div>
 
-    <div class="settings-footer">
-      <div id="reloadHint" class="reload-hint" hidden>
-        <span id="reloadHintText"></span>
-        <button id="reloadModelBtn" class="reload-btn" type="button">♻ Restart Engine</button>
-      </div>
-      <button id="settingsDone" class="done-btn" type="button">Done</button>
+    <!-- ============ SPLITTER POPUP MODAL ============ -->
+    <div id="splitOverlay" class="settings-overlay" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Split oversized model">
+            <div class="settings-header">
+                <h2>⚠️ File Too Large</h2>
+                <button id="splitClose" class="icon-close" type="button" title="Close">✕</button>
+            </div>
+            <div class="settings-body">
+                <div class="settings-section">
+                    <p id="splitMsg" style="font-size:.9rem;margin:0;line-height:1.5"></p>
+                    <p id="splitPlan" class="settings-hint"
+                        style="font-family:'Fira Code',monospace;font-size:.72rem;white-space:pre-wrap;margin-top:12px">
+                    </p>
+                    <p class="settings-hint" style="margin-top:12px">No quality is lost — bytes are copied exactly, only
+                        cut at tensor boundaries.</p>
+                    <p id="splitWarn" class="settings-hint" style="color:var(--warning);font-weight:600" hidden></p>
+                </div>
+                <div class="settings-section" id="splitProgressSection" hidden>
+                    <div class="progress-track">
+                        <div id="splitBar" class="progress-fill"></div>
+                    </div>
+                    <div id="splitStatus" class="progress-label"></div>
+                </div>
+            </div>
+            <div class="settings-footer">
+                <button id="splitCancelBtn" class="reload-btn" type="button">Cancel</button>
+                <button id="splitGoBtn" class="done-btn" type="button">✂️ Split into Downloads</button>
+                <button id="splitOkBtn" class="done-btn" type="button" hidden>Done — I'll select the shards</button>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
 
-<script type="module">
-/* ================= ENGINE (verified v3.6.1 + v2.3.1 fallback) =================
-   v3 config verified from the package's published type definitions:
-   AssetsPathConfig = { default: <wasm-url> }.
-   v3 chat streaming uses the officially documented async-generator form,
-   reading BOTH delta.content and delta.reasoning_content (Qwen3 thinking),
-   with an automatic non-streaming retry if streaming yields nothing. */
+    <script type="module">
+        /* ================= ENGINE (verified v3.6.1 + v2.3.1 fallback) ================= */
 const PREFERRED_VERSION = '3.6.1';  // set to '2.3.1' to skip v3 entirely
 
 const ENGINE_V3 = {
@@ -378,7 +1405,8 @@ const ENGINE_V2 = {
   },
 };
 const ENGINE_LABELS = { webgpu: 'WebGPU', multithread: 'Multi-Thread CPU', singlethread: 'Single-Thread CPU' };
-const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024 - (64 * 1024 * 1024); // ~1.94 GB safety margin
+const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024 - (64 * 1024 * 1024); // ~1.94 GiB single-file limit
+const SPLIT_TARGET_BYTES = 1_700_000_000; // shard target size (safely under the limit)
 
 // escaped on purpose so nothing between here and your file can eat them
 const THINK_OPEN  = '\x3cthink\x3e';
@@ -390,6 +1418,7 @@ const PRESETS = {
   medium: { ctx: 6144, predict: 2048 },
   big:    { ctx: 8192, predict: 4096 },
 };
+const KV_LEVELS = ['f16', 'q8_0', 'q4_0'];
 const settings = {
   preset: 'medium',
   engine: 'webgpu',
@@ -400,26 +1429,34 @@ const settings = {
   topK: 40,
   repPenalty: 1.1,
   advanced: false,
-  thinking: true,   // 🧠 toggle — Qwen3-style reasoning on/off, applies per message
+  thinking: true,
+  perf: { kv: 'q8_0', flash: true, batch: 2048 },   // ⚡ token-speed tuning
 };
 
 /* ================= DOM ================= */
 const $ = id => document.getElementById(id);
 const hud = $('diagnostic-hud'), ggufInput = $('ggufInput'),
-      newChatBtn = $('newChatBtn'), progContainer = $('progress-container'), progBar = $('progress-bar'),
+      newChatBtn = $('newChatBtn'), benchBtn = $('benchBtn'),
+      progContainer = $('progress-container'), progBar = $('progress-bar'),
       progText = $('progress-text'), chatContainer = $('chat-history'), userInput = $('userInput'),
       sendBtn = $('sendBtn'), modelStatus = $('modelStatus'), systemPromptEl = $('systemPrompt'),
       thinkToggle = $('thinkToggle'),
       settingsBtn = $('settingsBtn'), settingsDot = $('settingsDot'), settingsOverlay = $('settingsOverlay'),
       settingsClose = $('settingsClose'), settingsDone = $('settingsDone'), advancedToggle = $('advancedToggle'),
       advancedSection = $('advancedSection'), engineSelect = $('engineSelect'),
+      kvSlider = $('kvSlider'), kvLabel = $('kvLabel'), faCheck = $('faCheck'),
+      batchSlider = $('batchSlider'), batchVal = $('batchVal'),
       ctxSlider = $('ctxSlider'), ctxValue = $('ctxValue'),
       predictSlider = $('predictSlider'), predictValue = $('predictValue'),
       tempSlider = $('tempSlider'), tempValue = $('tempValue'), tempRow = $('tempRow'),
       topPSlider = $('topPSlider'), topPValue = $('topPValue'),
       topKSlider = $('topKSlider'), topKValue = $('topKValue'),
       penaltySlider = $('penaltySlider'), penaltyValue = $('penaltyValue'),
-      reloadHint = $('reloadHint'), reloadHintText = $('reloadHintText'), reloadModelBtn = $('reloadModelBtn');
+      reloadHint = $('reloadHint'), reloadHintText = $('reloadHintText'), reloadModelBtn = $('reloadModelBtn'),
+      splitOverlay = $('splitOverlay'), splitClose = $('splitClose'), splitMsg = $('splitMsg'),
+      splitPlan = $('splitPlan'), splitWarn = $('splitWarn'), splitProgressSection = $('splitProgressSection'),
+      splitBar = $('splitBar'), splitStatus = $('splitStatus'),
+      splitCancelBtn = $('splitCancelBtn'), splitGoBtn = $('splitGoBtn'), splitOkBtn = $('splitOkBtn');
 const presetBtns = document.querySelectorAll('.preset-btn');
 
 /* ================= STATE ================= */
@@ -564,8 +1601,6 @@ function setSendMode(mode) {
     sendBtn.title = 'Send';
   }
 }
-
-/* 🧠 thinking toggle */
 function syncThinkToggle() {
   thinkToggle.classList.toggle('on', settings.thinking);
   thinkToggle.classList.toggle('off', !settings.thinking);
@@ -605,14 +1640,29 @@ function refreshPresetHighlight() {
   settings.preset = match || 'custom';
   presetBtns.forEach(b => b.classList.toggle('active', b.dataset.preset === settings.preset));
 }
+function desiredPerf() {
+  return {
+    flash: settings.perf.flash,
+    kvK: settings.perf.kv,
+    kvV: settings.perf.flash ? settings.perf.kv : 'f16', // quantized V-cache requires FA
+    batch: settings.perf.batch,
+  };
+}
 function updateReloadHint() {
-  const needed = !!(wllama && loadedFiles && (settings.nCtx !== modelInfo.ctx || effectiveEngine() !== modelInfo.engine));
+  let perfChanged = false;
+  if (wllama && modelInfo?.engineVersion?.startsWith('3') && modelInfo.perf) {
+    const w = desiredPerf(), h = modelInfo.perf;
+    if (w.flash !== h.flash || w.kvK !== h.kvK || w.kvV !== h.kvV || w.batch !== h.batch) perfChanged = true;
+  }
+  const needed = !!(wllama && loadedFiles &&
+    (settings.nCtx !== modelInfo.ctx || effectiveEngine() !== modelInfo.engine || perfChanged));
   reloadHint.hidden = !needed;
   settingsDot.classList.toggle('show', needed);
   if (needed) {
     const parts = [];
     if (settings.nCtx !== modelInfo.ctx) parts.push(`ctx ${modelInfo.ctx}→${settings.nCtx}`);
     if (effectiveEngine() !== modelInfo.engine) parts.push(`engine ${ENGINE_LABELS[modelInfo.engine]}→${ENGINE_LABELS[effectiveEngine()]}`);
+    if (perfChanged) parts.push('token speed');
     reloadHintText.textContent = `⚠ Restart to apply: ${parts.join(' · ')}`;
   }
 }
@@ -623,6 +1673,10 @@ function syncSettingsUI() {
   topPSlider.value = settings.topP;            topPValue.textContent = settings.topP.toFixed(2);
   topKSlider.value = settings.topK;            topKValue.textContent = settings.topK;
   penaltySlider.value = settings.repPenalty;   penaltyValue.textContent = settings.repPenalty.toFixed(2);
+  kvSlider.value = Math.max(0, KV_LEVELS.indexOf(settings.perf.kv));
+  kvLabel.textContent = settings.perf.kv;
+  faCheck.checked = settings.perf.flash;
+  batchSlider.value = settings.perf.batch;     batchVal.textContent = settings.perf.batch;
   refreshEngineAvailability();
   advancedToggle.checked = settings.advanced;
   advancedSection.hidden = !settings.advanced;
@@ -667,6 +1721,18 @@ topKSlider.addEventListener('input', () => { settings.topK = +topKSlider.value; 
 penaltySlider.addEventListener('input', () => { settings.repPenalty = +penaltySlider.value; penaltyValue.textContent = settings.repPenalty.toFixed(2); });
 engineSelect.addEventListener('change', () => { settings.engine = engineSelect.value; updateReloadHint(); });
 
+kvSlider.addEventListener('input', () => {
+  settings.perf.kv = KV_LEVELS[+kvSlider.value] || 'q8_0';
+  kvLabel.textContent = settings.perf.kv;
+  updateReloadHint();
+});
+faCheck.addEventListener('change', () => { settings.perf.flash = faCheck.checked; updateReloadHint(); });
+batchSlider.addEventListener('input', () => {
+  settings.perf.batch = +batchSlider.value;
+  batchVal.textContent = settings.perf.batch;
+  updateReloadHint();
+});
+
 settingsBtn.addEventListener('click', openSettings);
 settingsClose.addEventListener('click', closeSettings);
 settingsDone.addEventListener('click', closeSettings);
@@ -681,6 +1747,409 @@ thinkToggle.addEventListener('click', () => {
   sysLog(`Thinking mode ${settings.thinking ? 'ON — model will reason first (slower, often better answers)' : 'OFF — direct answers, much faster'}.`, settings.thinking ? 'info' : 'warn');
   syncThinkToggle();
 });
+
+/* ================= GGUF PARSER (splitter + shard verification) ================= */
+const NEED_MORE = new Error('need-more-bytes');
+NEED_MORE.needMore = true;
+
+function parseGgufFromBuffer(ab, fileSize) {
+  const dv = new DataView(ab), u8 = new Uint8Array(ab);
+  const dec = new TextDecoder();
+  let o = 0;
+  const need = n => { if (o + n > ab.byteLength) throw NEED_MORE; };
+
+  if (ab.byteLength < 12) throw NEED_MORE;
+  if (u8[0] !== 0x47 || u8[1] !== 0x47 || u8[2] !== 0x55 || u8[3] !== 0x46)
+    throw new Error('not a GGUF file (bad magic)');
+  o = 4;
+  const version = dv.getUint32(o, true); o += 4;
+  if (version !== 2 && version !== 3) throw new Error(`unsupported GGUF version ${version}`);
+  const isV3 = version >= 3;
+  need(16);
+  const tensorCount = Number(dv.getBigUint64(o, true)); o += 8;
+  const kvCount = Number(dv.getBigUint64(o, true)); o += 8;
+  if (tensorCount === 0 || tensorCount > 65536) throw new Error(`implausible tensor count ${tensorCount}`);
+  if (kvCount > 4096) throw new Error(`implausible metadata count ${kvCount}`);
+
+  const kvStart = o;
+  let alignment = 32;
+  const splitMeta = { no: null, count: null, tensors: null };
+
+  const readLen = () => {
+    need(isV3 ? 8 : 4);
+    const v = isV3 ? Number(dv.getBigUint64(o, true)) : dv.getUint32(o, true);
+    o += isV3 ? 8 : 4;
+    return v;
+  };
+  const readStrRaw = () => {
+    const len = readLen();
+    if (len > 65536) throw new Error('metadata string too long (corrupt?)');
+    need(len);
+    const s = o; o += len;
+    return { start: s, len };
+  };
+  const POD_SIZE = { 0:1, 1:1, 2:2, 3:2, 4:4, 5:4, 6:4, 7:1, 10:8, 11:8, 12:8 };
+  const skipValue = type => {
+    if (POD_SIZE[type] != null) { need(POD_SIZE[type]); o += POD_SIZE[type]; return; }
+    if (type === 8) { readStrRaw(); return; }
+    if (type === 9) {
+      need(4); const et = dv.getUint32(o, true); o += 4;
+      const n = readLen();
+      if (et === 8) { for (let i = 0; i < n; i++) readStrRaw(); }
+      else if (et === 9) { for (let i = 0; i < n; i++) skipValue(9); }
+      else {
+        if (POD_SIZE[et] == null) throw new Error(`unknown array element type ${et}`);
+        need(n * POD_SIZE[et]); o += n * POD_SIZE[et];
+      }
+      return;
+    }
+    throw new Error(`unknown GGUF value type ${type}`);
+  };
+
+  for (let i = 0; i < kvCount; i++) {
+    const ks = readStrRaw();
+    need(4);
+    const vt = dv.getUint32(o, true); o += 4;
+    const key = dec.decode(u8.subarray(ks.start, ks.start + ks.len));
+    if (key === 'general.alignment') {
+      if (vt !== 4) throw new Error('general.alignment has unexpected type');
+      need(4); alignment = dv.getUint32(o, true); o += 4;
+      if (alignment < 1 || alignment > (1 << 24)) throw new Error(`implausible alignment ${alignment}`);
+    } else if (key === 'split.no') {
+      if (vt !== 2) throw new Error('split.no has unexpected type');
+      need(2); splitMeta.no = dv.getUint16(o, true); o += 2;
+    } else if (key === 'split.count') {
+      if (vt !== 2) throw new Error('split.count has unexpected type');
+      need(2); splitMeta.count = dv.getUint16(o, true); o += 2;
+    } else if (key === 'split.tensors') {
+      if (vt !== 7) throw new Error('split.tensors has unexpected type');
+      need(1); splitMeta.tensors = u8[o] !== 0; o += 1;
+    } else {
+      skipValue(vt);
+    }
+  }
+  const kvEnd = o;
+
+  const tensors = [];
+  for (let i = 0; i < tensorCount; i++) {
+    const ns = readStrRaw();
+    const name = dec.decode(u8.subarray(ns.start, ns.start + ns.len));
+    need(4); const nDims = dv.getUint32(o, true); o += 4;
+    if (nDims < 1 || nDims > 8) throw new Error(`tensor "${name}" has bad dim count`);
+    need(nDims * 8);
+    const dims = [];
+    for (let d = 0; d < nDims; d++) { dims.push(Number(dv.getBigUint64(o, true))); o += 8; }
+    need(12);
+    const type = dv.getUint32(o, true); o += 4;
+    const off = Number(dv.getBigUint64(o, true)); o += 8;
+    tensors.push({ name, nDims, dims, type, offset: off, size: 0 });
+  }
+
+  const dataStart = (o + (alignment - (o % alignment)) % alignment);
+  const order = tensors.map((_, i) => i).sort((a, b) => tensors[a].offset - tensors[b].offset);
+  for (let k = 0; k < order.length; k++) {
+    const t = tensors[order[k]];
+    const nextOff = (k + 1 < order.length) ? tensors[order[k + 1]].offset : (fileSize - dataStart);
+    t.size = nextOff - t.offset;
+    if (t.size < 0 || dataStart + t.offset + t.size > fileSize)
+      throw new Error(`tensor "${t.name}" extends past end of file (corrupt GGUF)`);
+  }
+  return { version, isV3, alignment, kvStart, kvEnd, kvCount, splitMeta, tensors, dataStart, prefix: ab };
+}
+
+async function parseGgufStructure(file) {
+  if (file.size < 16) throw new Error('file too small to be a GGUF');
+  let cap = 1 << 20;
+  const hardCap = 192 << 20;
+  while (cap <= hardCap) {
+    let ab;
+    try { ab = await file.slice(0, Math.min(cap, file.size)).arrayBuffer(); }
+    catch (e) { throw new Error('could not read file: ' + (e?.message || e)); }
+    try { return parseGgufFromBuffer(ab, file.size); }
+    catch (e) {
+      if (e === NEED_MORE || e?.needMore) { cap *= 8; continue; }
+      throw e;
+    }
+  }
+  throw new Error('GGUF metadata too large to parse (over 192 MB) — unsupported');
+}
+
+/* ================= OVERSIZED-FILE SPLITTER ================= */
+let splitMode = 'idle';
+let splitAskResolve = null;
+
+function closeSplitPopup() {
+  if (splitMode === 'run') return;
+  const wasAsk = splitMode === 'ask';
+  splitMode = 'idle';
+  splitOverlay.hidden = true;
+  if (wasAsk && splitAskResolve) { const r = splitAskResolve; splitAskResolve = null; r({ go: false }); }
+}
+
+function planShards(struct) {
+  const groups = []; let cur = [], curBytes = 0;
+  for (const t of struct.tensors) {
+    if (curBytes && curBytes + t.size > SPLIT_TARGET_BYTES) { groups.push(cur); cur = []; curBytes = 0; }
+    cur.push(t); curBytes += t.size;
+  }
+  if (cur.length) groups.push(cur);
+  return groups;
+}
+
+function buildSplitKvs(isV3, shardIdx, totalShards) {
+  const enc = new TextEncoder();
+  const mk = (key, typeId, valBytes) => {
+    const kb = enc.encode(key);
+    const b = new Uint8Array((isV3 ? 8 : 4) + kb.length + 4 + valBytes.length);
+    const dv = new DataView(b.buffer);
+    let o = 0;
+    if (isV3) { dv.setBigUint64(0, BigInt(kb.length), true); o = 8; }
+    else { dv.setUint32(0, kb.length, true); o = 4; }
+    b.set(kb, o); o += kb.length;
+    dv.setUint32(o, typeId, true); o += 4;
+    b.set(valBytes, o);
+    return b;
+  };
+  const u16 = v => { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, v, true); return b; };
+  const boolB = v => new Uint8Array([v ? 1 : 0]);
+  return [
+    mk('split.no', 2, u16(shardIdx)),
+    mk('split.count', 2, u16(totalShards)),
+    mk('split.tensors', 7, boolB(false)),
+  ];
+}
+
+function buildShardHeadParts(struct, group, shardIdx, totalShards) {
+  const { isV3, alignment } = struct;
+  let running = 0;
+  for (const t of group) {
+    t._local = running;
+    t._pad = (alignment - (t.size % alignment)) % alignment;
+    running += t.size + t._pad;
+  }
+  const enc = new TextEncoder();
+  let infosLen = 0;
+  for (const t of group) infosLen += (isV3 ? 8 : 4) + enc.encode(t.name).length + 4 + 8 * t.nDims + 4 + 8;
+  const infos = new Uint8Array(infosLen);
+  const idv = new DataView(infos.buffer);
+  {
+    let o = 0;
+    for (const t of group) {
+      const nb = enc.encode(t.name);
+      if (isV3) { idv.setBigUint64(o, BigInt(nb.length), true); o += 8; }
+      else { idv.setUint32(o, nb.length, true); o += 4; }
+      infos.set(nb, o); o += nb.length;
+      idv.setUint32(o, t.nDims, true); o += 4;
+      for (const d of t.dims) { idv.setBigUint64(o, BigInt(d), true); o += 8; }
+      idv.setUint32(o, t.type, true); o += 4;
+      idv.setBigUint64(o, BigInt(t._local), true); o += 8;
+    }
+  }
+  const head = new Uint8Array(24);
+  const hdv = new DataView(head.buffer);
+  head[0] = 0x47; head[1] = 0x47; head[2] = 0x55; head[3] = 0x46;
+  hdv.setUint32(4, struct.version, true);
+  hdv.setBigUint64(8, BigInt(group.length), true);
+  hdv.setBigUint64(16, BigInt(struct.kvCount + 3), true);
+
+  const kvRaw = new Uint8Array(struct.prefix, struct.kvStart, struct.kvEnd - struct.kvStart);
+  const parts = [head, kvRaw, ...buildSplitKvs(isV3, shardIdx, totalShards), infos];
+  const total = parts.reduce((s, p) => s + p.length, 0);
+  const pad = (alignment - (total % alignment)) % alignment;
+  if (pad) parts.push(new Uint8Array(pad));
+  return parts;
+}
+
+function setSplitProgress(shardIdx, total, done, totalBytes) {
+  const pct = Math.min(100, Math.round((done / totalBytes) * 100));
+  splitBar.style.width = pct + '%';
+  splitStatus.textContent = `Shard ${shardIdx + 1}/${total} · ${pct}% · ${(done / 1e9).toFixed(2)} / ${(totalBytes / 1e9).toFixed(2)} GB`;
+}
+function splitRunDone(names, cancelled) {
+  splitMode = 'done';
+  if (!cancelled) splitBar.style.width = '100%';
+  splitStatus.textContent = cancelled
+    ? 'Cancelled — partially written files may remain in the folder.'
+    : `✓ ${names.length} shards written. Now select ALL of them together in the loader.`;
+  splitOkBtn.hidden = false; splitGoBtn.hidden = true; splitCancelBtn.hidden = true;
+}
+
+function splitPopupAsk(file, struct, groups) {
+  return new Promise(resolve => {
+    splitAskResolve = resolve;
+    splitMode = 'ask';
+    const baseName = file.name.replace(/\.gguf$/i, '');
+    const names = groups.map((_, i) => `${baseName}-${String(i + 1).padStart(5, '0')}-of-${String(groups.length).padStart(5, '0')}.gguf`);
+    splitMsg.innerHTML =
+      `The file given is <strong>too large</strong> to load directly — <strong>${escapeHtml(file.name)}</strong> is ` +
+      `${(file.size / 1e9).toFixed(2)} GB (single-file limit ≈ ${(MAX_FILE_BYTES / 1e9).toFixed(2)} GB).<br>` +
+      `Would you like to split it into your Downloads folder?`;
+    const shown = names.length > 4 ? names.slice(0, 3).concat(`… (+${names.length - 3} more)`) : names;
+    splitPlan.textContent = `${groups.length} shards · ≤ ${(SPLIT_TARGET_BYTES / 1e9).toFixed(1)} GB each · ${struct.tensors.length} tensors:\n${shown.join('\n')}`;
+    const needGB = (file.size / 1e9) * 1.15 + 0.6;
+    if (needGB > 3.6) {
+      splitWarn.hidden = false;
+      splitWarn.textContent = `⚠️ Once loaded, this model needs roughly ${needGB.toFixed(1)} GB of RAM. On an 8 GB Chromebook that's borderline — close other tabs, use the Small preset, and it may still fail to load.`;
+    } else splitWarn.hidden = true;
+    const useDir = !!(window.showDirectoryPicker && window.isSecureContext);
+    splitGoBtn.textContent = useDir ? '✂️ Split into Downloads' : '✂️ Split (download shards)';
+    splitGoBtn.hidden = false; splitCancelBtn.hidden = false; splitOkBtn.hidden = true;
+    splitProgressSection.hidden = true;
+    splitBar.style.width = '0%';
+    splitStatus.textContent = '';
+    splitOverlay.hidden = false;
+  });
+}
+
+splitGoBtn.addEventListener('click', () => {
+  if (splitMode !== 'ask' || !splitAskResolve) return;
+  const dirPromise = (window.showDirectoryPicker && window.isSecureContext)
+    ? showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' })
+        .catch(e => (e?.name === 'AbortError' ? 'cancelled' : null))
+    : Promise.resolve(null);
+  splitMode = 'run';
+  splitGoBtn.hidden = true; splitCancelBtn.hidden = true;
+  splitProgressSection.hidden = false;
+  splitStatus.textContent = 'Preparing…';
+  const r = splitAskResolve; splitAskResolve = null;
+  r({ go: true, dirPromise });
+});
+splitCancelBtn.addEventListener('click', closeSplitPopup);
+splitClose.addEventListener('click', closeSplitPopup);
+splitOkBtn.addEventListener('click', () => { splitMode = 'idle'; splitOverlay.hidden = true; });
+splitOverlay.addEventListener('click', e => { if (e.target === splitOverlay) closeSplitPopup(); });
+
+async function performSplit(file, struct, groups, dirHandlePromise) {
+  const baseName = file.name.replace(/\.gguf$/i, '').replace(/-\d{5}-of-\d{5}$/, '');
+  const total = groups.length;
+  const names = groups.map((_, i) => `${baseName}-${String(i + 1).padStart(5, '0')}-of-${String(total).padStart(5, '0')}.gguf`);
+  const zeros = new Uint8Array(struct.alignment);
+  const totalBytes = file.size;
+  let doneBytes = 0;
+
+  const dir = await dirHandlePromise;
+  if (dir === 'cancelled') {
+    sysLog('Split cancelled (folder picker closed).', 'warn');
+    splitRunDone(names, true);
+    return false;
+  }
+
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    const parts = buildShardHeadParts(struct, group, i, total);
+    let shardBytes = parts.reduce((s, p) => s + p.length, 0);
+
+    if (dir) {
+      const fh = await dir.getFileHandle(names[i], { create: true });
+      const w = await fh.createWritable();
+      for (const p of parts) await w.write(p);
+      for (const t of group) {
+        const abs = struct.dataStart + t.offset;
+        await w.write(file.slice(abs, abs + t.size));
+        if (t._pad) await w.write(zeros.subarray(0, t._pad));
+        shardBytes += t.size + t._pad; doneBytes += t.size + t._pad;
+        setSplitProgress(i, total, doneBytes, totalBytes);
+      }
+      await w.close();
+      try {
+        const wf = await fh.getFile();
+        const s2 = await parseGgufStructure(wf);
+        if (s2.splitMeta.no !== i || s2.splitMeta.count !== total || s2.tensors.length !== group.length)
+          throw new Error('split metadata mismatch');
+        sysLog(`✂️ ${names[i]} — ${(shardBytes / 1e9).toFixed(2)} GB · ${group.length} tensors · header verified ✓`, 'success');
+      } catch (e) {
+        sysLog(`✂️ ${names[i]} written, but header re-check failed: ${e?.message || e}`, 'warn');
+      }
+    } else {
+      const blobParts = [...parts];
+      for (const t of group) {
+        const abs = struct.dataStart + t.offset;
+        blobParts.push(file.slice(abs, abs + t.size));
+        if (t._pad) blobParts.push(zeros.subarray(0, t._pad));
+        shardBytes += t.size + t._pad; doneBytes += t.size + t._pad;
+        setSplitProgress(i, total, doneBytes, totalBytes);
+      }
+      const url = URL.createObjectURL(new Blob(blobParts));
+      const a = document.createElement('a');
+      a.href = url; a.download = names[i];
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+      await new Promise(r => setTimeout(r, 1400));
+      sysLog(`✂️ ${names[i]} — download started (${(shardBytes / 1e9).toFixed(2)} GB · ${group.length} tensors)`, 'success');
+    }
+  }
+  sysLog(`✂️ split complete: ${total} shards. Select ALL of them together in the loader.`, 'success');
+  splitRunDone(names, false);
+  return true;
+}
+
+async function offerAndSplit(file) {
+  let struct;
+  try { struct = await parseGgufStructure(file); }
+  catch (e) { sysLog(`✂️ cannot split "${file.name}": ${e?.message || e}`, 'error'); return false; }
+  if (struct.splitMeta.no != null || struct.splitMeta.count != null || struct.splitMeta.tensors != null) {
+    sysLog(`"${file.name}" is already a split shard — select the full set instead of splitting it again.`, 'warn');
+    return false;
+  }
+  const bigTensor = struct.tensors.find(t => t.size > MAX_FILE_BYTES);
+  if (bigTensor) {
+    sysLog(`✂️ cannot split "${file.name}": tensor "${bigTensor.name}" alone is ${(bigTensor.size / 1e9).toFixed(2)} GB — over the per-shard limit.`, 'error');
+    return false;
+  }
+  const groups = planShards(struct);
+  if (groups.length < 2) { sysLog(`"${file.name}" is under the shard target — no split needed.`, 'info'); return false; }
+
+  const answer = await splitPopupAsk(file, struct, groups);
+  if (!answer || !answer.go) {
+    sysLog(`Split declined for "${file.name}" — it exceeds the single-file limit, so it cannot be loaded as-is.`, 'warn');
+    return false;
+  }
+  await performSplit(file, struct, groups, answer.dirPromise);
+  return true;
+}
+
+/* ================= SHARD SET VERIFICATION ================= */
+async function verifyShardSet(files) {
+  if (files.length === 1) {
+    try {
+      const s = await parseGgufStructure(files[0]);
+      if (s.splitMeta.count > 1) {
+        sysLog(`"${files[0].name}" is shard ${(s.splitMeta.no ?? 0) + 1} of ${s.splitMeta.count} — select ALL shards together.`, 'error');
+        return false;
+      }
+    } catch {}
+    return true;
+  }
+  const names = new Set();
+  let expectedCount = null;
+  for (const f of files) {
+    let s;
+    try { s = await parseGgufStructure(f); }
+    catch (e) { sysLog(`shard check: could not parse "${f.name}" (${e?.message || e}) — letting the engine decide.`, 'warn'); return true; }
+    if (s.splitMeta.count == null) {
+      sysLog(`shard check: "${f.name}" has no split metadata — these don't look like a matching shard set.`, 'warn');
+      return true;
+    }
+    if (expectedCount == null) expectedCount = s.splitMeta.count;
+    else if (expectedCount !== s.splitMeta.count) {
+      sysLog(`shard check: split.count mismatch in "${f.name}" (${s.splitMeta.count} ≠ ${expectedCount}) — wrong set.`, 'error');
+      return false;
+    }
+    for (const t of s.tensors) {
+      if (names.has(t.name)) {
+        sysLog(`shard check: tensor "${t.name}" appears in more than one file — invalid set.`, 'error');
+        return false;
+      }
+      names.add(t.name);
+    }
+  }
+  if (expectedCount !== files.length) {
+    sysLog(`shard check: expected ${expectedCount} shards, got ${files.length} — select the complete set.`, 'error');
+    return false;
+  }
+  sysLog(`shard check ✓: ${files.length} shards · ${names.size} tensors total · no duplicates.`, 'success');
+  return true;
+}
 
 /* ================= URL PRECHECK ================= */
 const headCache = new Map();
@@ -734,57 +2203,92 @@ function loadModelWithWatchdog(instance, files, loadOpts, silentMs) {
   });
 }
 
-function buildLoadParams(engine, nCtx, isV3) {
+/* ⚡ speed params, applied at load time:
+   - n_batch: bigger = faster prompt prefill
+   - flash_attn: faster attention
+   - cache_type_k/v: quantized KV cache = less RAM + faster decode at long ctx
+   mode 'fast' = user's perf settings; 'safe' = engine defaults (fallback) */
+function buildLoadParams(engine, nCtx, isV3, mode) {
   const threads = Math.min(navigator.hardwareConcurrency || 2, 8);
-  const p = { n_ctx: nCtx, jinja: true };
+  const p = { n_ctx: nCtx, jinja: true, n_batch: settings.perf.batch };
   if (isV3) {
-    // v3.1+: WebGPU auto-enables unless n_gpu_layers is 0 — REQUIRED for CPU engines
     p.n_gpu_layers = engine === 'webgpu' ? 99 : 0;
     p.n_threads = engine === 'singlethread' ? 1 : threads;
-    // keep think tags inside content (we parse them client-side); we also
-    // read delta.reasoning_content defensively in case the engine splits them
     p.reasoning_format = 'none';
+    if (mode === 'fast') {
+      p.flash_attn = settings.perf.flash;
+      p.cache_type_k = settings.perf.kv;
+      p.cache_type_v = settings.perf.flash ? settings.perf.kv : 'f16'; // quantized V requires FA
+    }
   } else {
     p.n_threads = engine === 'singlethread' ? 1 : threads;
   }
   return p;
 }
 
-async function loadModelFiles(files) {
+async function loadModelFiles(inputFiles) {
   if (isLoading)    { sysLog('A load is already in progress.', 'warn'); return; }
   if (isGenerating) { sysLog('Stop generation before swapping models.', 'warn'); return; }
-  files = Array.from(files).sort((a, b) => a.name.localeCompare(b.name));
-  if (!files.length) return;
-  const bad = files.find(f => !/\.(gguf|bin)$/i.test(f.name));
+  const raw = Array.from(inputFiles || []);
+  if (!raw.length) return;
+  const bad = raw.find(f => !/\.(gguf|bin)$/i.test(f.name));
   if (bad) { sysLog(`"${bad.name}" is not a .gguf file.`, 'warn'); return; }
-  const tooBig = files.find(f => f.size > MAX_FILE_BYTES);
-  if (tooBig) {
-    sysLog(`ERROR: "${tooBig.name}" is ${(tooBig.size / 1073741824).toFixed(2)} GB — over the ~2 GB single-file limit (ArrayBuffer restriction).`, 'error');
-    sysLog('Use a smaller quant, or split the GGUF (llama-gguf-split --split-max-size 512M) and select ALL shards together.', 'warn');
-    return;
-  }
+  const files = raw.sort((a, b) => a.name.localeCompare(b.name));
 
   isLoading = true;
-  const nCtx = settings.nCtx;
-  const engine = effectiveEngine();
-  const displayName = files.length > 1 ? `${files[0].name} (+${files.length - 1} shards)` : files[0].name;
-  const totalMB = (files.reduce((s, f) => s + f.size, 0) / 1048576).toFixed(0);
-
-  sysLog('--- LOAD SEQUENCE START ---', 'info');
-  sysLog(`File: ${displayName} (${totalMB} MB total, ${files.length} file${files.length > 1 ? 's' : ''})`);
-  sysLog(`Engine: ${ENGINE_LABELS[engine]}${engine === 'webgpu' ? ' (GPU — no COOP/COEP needed)' : ''}`);
-  sysLog(`Context: ${nCtx} tokens · preset: ${settings.preset}`);
-
   try {
-    const candidates = PREFERRED_VERSION === '2.3.1' ? [ENGINE_V2] : [ENGINE_V3, ENGINE_V2];
-    let loaded = false, lastErr = null, winner = null;
+    const oversized = files.filter(f => f.size > MAX_FILE_BYTES);
+    const normal = files.filter(f => f.size <= MAX_FILE_BYTES);
+    if (oversized.length) {
+      for (const f of oversized) {
+        try { await offerAndSplit(f); }
+        catch (e) { sysLog(`✂️ split failed for "${f.name}": ${e?.message || e}`, 'error'); }
+      }
+      if (!normal.length) {
+        sysLog('Split flow finished — re-select ALL written shards together in the loader to run the model.', 'info');
+        return;
+      }
+    }
+    const loadFiles = normal;
+    if (loadFiles.length > 1) {
+      if (!(await verifyShardSet(loadFiles))) {
+        sysLog('Load aborted: the shard set is invalid or incomplete.', 'error');
+        return;
+      }
+    }
+    if (!loadFiles.length) return;
 
-    for (let i = 0; i < candidates.length; i++) {
-      const cand = candidates[i];
+    const nCtx = settings.nCtx;
+    const engine = effectiveEngine();
+    const displayName = loadFiles.length > 1 ? `${loadFiles[0].name} (+${loadFiles.length - 1} shards)` : loadFiles[0].name;
+    const totalMB = (loadFiles.reduce((s, f) => s + f.size, 0) / 1048576).toFixed(0);
+
+    sysLog('--- LOAD SEQUENCE START ---', 'info');
+    sysLog(`File: ${displayName} (${totalMB} MB total, ${loadFiles.length} file${loadFiles.length > 1 ? 's' : ''})`);
+    sysLog(`Engine: ${ENGINE_LABELS[engine]}${engine === 'webgpu' ? ' (GPU — no COOP/COEP needed)' : ''}`);
+    sysLog(`Context: ${nCtx} tokens · preset: ${settings.preset}`);
+    const dp = desiredPerf();
+    sysLog(`⚡ Speed params: FA ${dp.flash ? 'on' : 'off'} · KV ${dp.kvK}/${dp.kvV} · batch ${dp.batch}`, 'info');
+
+    // attempt order: v3 fast (user perf settings) → v3 safe (defaults) → v2 legacy
+    const attempts = [];
+    if (PREFERRED_VERSION !== '2.3.1') {
+      attempts.push({ cand: ENGINE_V3, mode: 'fast' });
+      attempts.push({ cand: ENGINE_V3, mode: 'safe' });
+    }
+    attempts.push({ cand: ENGINE_V2, mode: 'plain' });
+
+    let loaded = false, lastErr = null, winner = null, winMode = null, winParams = null;
+
+    for (let i = 0; i < attempts.length; i++) {
+      const { cand, mode } = attempts[i];
       const isV3 = cand.version.startsWith('3');
       await safeExit(wllama); wllama = null;
 
-      sysLog(`[engine] ${i + 1}/${candidates.length} trying wllama v${cand.version}${isV3 ? ' (verified config: { default: wasm-url })' : ' (fallback)'}`, 'info');
+      const modeLabel = mode === 'fast'
+        ? `fast (FA ${dp.flash ? 'on' : 'off'} · KV ${dp.kvK}/${dp.kvV} · batch ${dp.batch})`
+        : (mode === 'safe' ? 'safe defaults' : 'legacy');
+      sysLog(`[engine] ${i + 1}/${attempts.length} trying wllama v${cand.version} · ${modeLabel}`, 'info');
 
       const bad = await precheckConfig(cand.config);
       if (bad) { sysLog(`[engine] precheck skip v${cand.version}: ${bad}`, 'warn'); lastErr = new Error(bad); continue; }
@@ -799,7 +2303,7 @@ async function loadModelFiles(files) {
           sysLog(`[engine] v3 WebGPU support check: ${wllama.isSupportWebGPU() ? 'YES' : 'NO'}`);
         }
 
-        const loadOpts = buildLoadParams(engine, nCtx, isV3);
+        const loadOpts = buildLoadParams(engine, nCtx, isV3, mode);
         if (!isV3) {
           loadOpts.progressCallback = ({ loaded, total }) => {
             const pct = total ? Math.round((loaded / total) * 100) : 100;
@@ -812,13 +2316,13 @@ async function loadModelFiles(files) {
         }
 
         lastEngineActivity = Date.now();
-        await loadModelWithWatchdog(wllama, files, loadOpts, 180000);
-        loaded = true; winner = cand;
+        await loadModelWithWatchdog(wllama, loadFiles, loadOpts, 180000);
+        loaded = true; winner = cand; winMode = mode; winParams = loadOpts;
         break;
       } catch (err) {
         lastErr = err;
         const msg = err?.message || String(err);
-        sysLog(`[engine] v${cand.version} failed: ${msg}`, 'warn');
+        sysLog(`[engine] v${cand.version} (${mode}) failed: ${msg}`, 'warn');
         await safeExit(wllama); wllama = null;
         if (/gguf|tensor|weights|invalid magic/i.test(msg)) {
           sysLog('The model file itself looks invalid/truncated — no engine can load it. Re-download and verify the size.', 'error');
@@ -828,7 +2332,10 @@ async function loadModelFiles(files) {
     }
 
     if (!loaded) throw lastErr || new Error('engine load failed');
-    sysLog(`[engine] WINNER: wllama v${winner.version} · ${ENGINE_LABELS[engine]}.`, 'success');
+    sysLog(`[engine] WINNER: wllama v${winner.version} · ${winMode} · ${ENGINE_LABELS[engine]}.`, 'success');
+    if (winMode === 'safe') {
+      sysLog('⚡ Fast params were rejected by this backend (e.g. Flash Attention unsupported) — safe defaults used. Your Performance settings will retry on next restart.', 'warn');
+    }
 
     if (winner.version.startsWith('3')) {
       try {
@@ -836,18 +2343,30 @@ async function loadModelFiles(files) {
       } catch {}
     }
 
-    modelInfo = { name: displayName, sizeMB: totalMB, ctx: nCtx, engine, engineVersion: winner.version };
-    loadedFiles = files;
+    const isV3winner = winner.version.startsWith('3');
+    modelInfo = {
+      name: displayName, sizeMB: totalMB, ctx: nCtx, engine, engineVersion: winner.version,
+      perf: isV3winner
+        ? (winMode === 'fast'
+            ? { flash: !!winParams.flash_attn, kvK: winParams.cache_type_k || 'f16', kvV: winParams.cache_type_v || 'f16', batch: winParams.n_batch, overridden: false }
+            : { ...desiredPerf(), overridden: true })  // record intent; backend overrode — don't nag with restart hint
+        : null,
+    };
+    loadedFiles = loadFiles;
     modelStatus.textContent = `${displayName} · ${totalMB} MB · ${ENGINE_LABELS[engine]} · ${nCtx} ctx`;
 
     finishProgress(true, 'System online');
     history = [];
-    showNote(`Engine online — <strong>${escapeHtml(displayName)}</strong> · ${totalMB} MB · ${ENGINE_LABELS[engine]} · ${nCtx} ctx · wllama v${winner.version}`);
+    const perfTag = isV3winner && winMode === 'fast'
+      ? ` · ⚡ FA ${modelInfo.perf.flash ? 'on' : 'off'} · KV ${modelInfo.perf.kvK}`
+      : '';
+    showNote(`Engine online — <strong>${escapeHtml(displayName)}</strong> · ${totalMB} MB · ${ENGINE_LABELS[engine]} · ${nCtx} ctx · wllama v${winner.version}${perfTag}`);
     userInput.disabled = false;
     userInput.placeholder = 'Message the model…';
     setSendMode('send');
+    benchBtn.disabled = false;
     updateReloadHint();
-    sysLog('SUCCESS: engine ready.', 'success');
+    sysLog('SUCCESS: engine ready. Run ⚡ Speed Test to measure your tok/s.', 'success');
     userInput.focus();
   } catch (err) {
     const msg = err?.message || String(err);
@@ -860,6 +2379,7 @@ async function loadModelFiles(files) {
     userInput.disabled = true;
     userInput.placeholder = 'Engine offline — load a model first.';
     setSendMode('send');
+    benchBtn.disabled = true;
     updateReloadHint();
   } finally {
     isLoading = false;
@@ -893,12 +2413,9 @@ function buildContextMessages() {
 
 /* ================= GENERATION (version-aware adapter) ================= */
 async function runGeneration(messages, opts) {
-  // opts: { maxTokens, temp, topP, topK, repPenalty, signal,
-  //         onPiece(piece, fullText?), onUsage(usage) }
   const isV3 = modelInfo.engineVersion.startsWith('3');
 
   if (!isV3) {
-    // v2 (verified working on this machine): two-arg call + onNewToken
     let acc = '';
     const result = await wllama.createChatCompletion(messages, {
       nPredict: opts.maxTokens,
@@ -913,9 +2430,6 @@ async function runGeneration(messages, opts) {
     return acc;
   }
 
-  // v3: officially documented async-generator streaming.
-  // Read BOTH delta.content and delta.reasoning_content — Qwen3 spends many
-  // tokens thinking first, and that text can arrive via either field.
   let reasoning = '', content = '';
   const synth = () => (reasoning ? THINK_OPEN + reasoning + THINK_CLOSE : '') + content;
 
@@ -927,18 +2441,15 @@ async function runGeneration(messages, opts) {
     top_k: opts.topK,
     penalty_repeat: opts.repPenalty,
     penalty_last_n: 64,
-    cache_prompt: true,
+    cache_prompt: true,   // ⚡ skips re-processing the shared history prefix
     stream: true,
     abortSignal: opts.signal,
   };
-  // 🧠 OFF → the official Qwen3 template kwarg (the /no_think soft switch on
-  // the message itself is added in handleSendMessage and covers both engines)
   if (!settings.thinking) req.chat_template_kwargs = { enable_thinking: false };
 
   const result = await wllama.createChatCompletion(req);
 
   if (result && typeof result[Symbol.asyncIterator] === 'function') {
-    // streaming generator (documented path)
     for await (const chunk of result) {
       const d = chunk?.choices?.[0]?.delta || {};
       let got = false;
@@ -948,7 +2459,6 @@ async function runGeneration(messages, opts) {
       if (chunk?.usage) opts.onUsage(chunk.usage);
     }
   } else if (result && typeof result === 'object') {
-    // engine ignored stream:true → non-streaming response object
     const msg = result?.choices?.[0]?.message || {};
     if (msg.reasoning_content) reasoning += msg.reasoning_content;
     if (typeof msg.content === 'string') content += msg.content;
@@ -956,7 +2466,6 @@ async function runGeneration(messages, opts) {
     if (content || reasoning) opts.onPiece(null, synth());
   }
 
-  // safety net: streaming produced nothing and we weren't aborted → one non-streaming retry
   if (!content && !reasoning && !opts.signal?.aborted) {
     sysLog('[gen] v3 streaming produced no text — retrying once in non-streaming mode…', 'warn');
     const r2 = await wllama.createChatCompletion({ ...req, stream: false });
@@ -981,10 +2490,6 @@ async function handleSendMessage() {
   appendMessage('user', text);
 
   const { temp, topP, topK, repPenalty, nPredict } = settings;
-
-  // Build the request copy (never mutate stored history) and apply the 🧠 toggle.
-  // OFF → append Qwen3's /no_think soft switch to the last user message;
-  // ON   → nothing extra (thinking is the model default).
   const messages = buildContextMessages().map(m => ({ role: m.role, content: m.content }));
   if (!settings.thinking) {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -1005,7 +2510,6 @@ async function handleSendMessage() {
   const t0 = performance.now();
   let tokens = 0, current = '', lastPaint = 0, failure = null, finalUsage = null, hintStage = 0;
 
-  // visibility: tell the user what's happening while nothing has arrived yet
   const stallChecker = setInterval(() => {
     if (!isGenerating) { clearInterval(stallChecker); return; }
     if (tokens > 0) return;
@@ -1102,6 +2606,59 @@ async function handleSendMessage() {
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+/* ================= ⚡ SPEED TEST ================= */
+const BENCH_PROMPT = 'Describe a storm over the ocean in one vivid paragraph.';
+
+async function runBenchmark() {
+  if (!wllama || isGenerating || isLoading) { sysLog('Speed test needs a loaded, idle model.', 'warn'); return; }
+  benchBtn.disabled = true;
+  sysLog('⚡ Speed test: generating 64 tokens (thinking off, chat history untouched)…', 'info');
+
+  const isV3 = modelInfo.engineVersion.startsWith('3');
+  const t0 = performance.now();
+  let tokens = 0, timings = null, failure = null;
+  try {
+    if (isV3) {
+      const res = await wllama.createChatCompletion({
+        messages: [{ role: 'user', content: BENCH_PROMPT }],
+        max_tokens: 64,
+        temperature: 0.7,
+        top_p: 0.95,
+        stream: true,
+        cache_prompt: false,
+        chat_template_kwargs: { enable_thinking: false },
+      });
+      if (res && typeof res[Symbol.asyncIterator] === 'function') {
+        for await (const ch of res) {
+          if (ch?.choices?.[0]?.delta?.content) tokens++;
+          if (ch?.timings) timings = ch.timings;
+        }
+      } else {
+        tokens = res?.usage?.completion_tokens ?? 0;
+        timings = res?.timings ?? null;
+      }
+    } else {
+      await wllama.createChatCompletion([{ role: 'user', content: BENCH_PROMPT }], {
+        nPredict: 64,
+        sampling: { temp: 0.7 },
+        onNewToken: () => tokens++,
+      });
+    }
+  } catch (e) { failure = e?.message || String(e); }
+
+  const secs = (performance.now() - t0) / 1000;
+  if (failure) {
+    sysLog(`⚡ Speed test failed: ${failure}`, 'error');
+  } else if (timings && (timings.predicted_per_second || timings.prompt_per_second)) {
+    sysLog(`⚡ RESULT · prefill: ${timings.prompt_n} tok @ ${(timings.prompt_per_second || 0).toFixed(1)} tok/s · decode: ${timings.predicted_n} tok @ ${(timings.predicted_per_second || 0).toFixed(1)} tok/s`, 'success');
+    sysLog(`⚡ (engine-reported timings · ${ENGINE_LABELS[modelInfo.engine]} · FA ${modelInfo.perf?.flash ? 'on' : 'off'} · KV ${modelInfo.perf?.kvK || 'n/a'})`, 'info');
+  } else {
+    sysLog(`⚡ RESULT: ${tokens} tokens in ${secs.toFixed(1)}s ≈ ${(tokens / Math.max(secs, .001)).toFixed(1)} tok/s overall (includes prompt processing)`, 'success');
+  }
+  benchBtn.disabled = false;
+}
+benchBtn.addEventListener('click', runBenchmark);
+
 /* ================= EVENTS ================= */
 function requestStop() {
   if (!isGenerating) return;
@@ -1128,6 +2685,7 @@ userInput.addEventListener('keydown', e => {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!settingsOverlay.hidden) { closeSettings(); return; }
+  if (!splitOverlay.hidden && splitMode === 'ask') { closeSplitPopup(); return; }
   requestStop();
 });
 newChatBtn.addEventListener('click', () => {
@@ -1145,6 +2703,8 @@ syncThinkToggle();
 
 sysLog('Nexus Studio initialized.', 'system');
 sysLog(`Engine: wllama v${PREFERRED_VERSION} (verified v3 config) → v2.3.1 fallback. Set PREFERRED_VERSION='2.3.1' to skip v3.`, 'info');
+sysLog(`⚡ Token speed: FA ${settings.perf.flash ? 'on' : 'off'} · KV cache ${settings.perf.kv} · batch ${settings.perf.batch} — tune in Settings → Advanced, apply with ♻ Restart, measure with ⚡ Speed Test.`, 'info');
+sysLog('✂️ Oversized files (>~1.94 GB) now offer an automatic tensor-aware splitter that writes shards to Downloads.', 'info');
 sysLog(`Thinking mode: ${settings.thinking ? 'ON (default) — toggle with the 🧠 button in the input bar' : 'OFF'}.`, 'info');
 if (webgpuAvailable) {
   sysLog('WebGPU: available ✓ — GPU inference needs no COOP/COEP. Pick 🚀 in Settings → Advanced.', 'success');
@@ -1158,6 +2718,7 @@ if (window.crossOriginIsolated) {
 }
 sysLog(`Logical cores: ${navigator.hardwareConcurrency || 'unknown'}`);
 if (location.protocol === 'file:') sysLog('Served from file:// — use http(s) if anything misbehaves.', 'warn');
-</script>
+    </script>
 </body>
+
 </html>
