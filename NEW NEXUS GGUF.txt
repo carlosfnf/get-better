@@ -1,0 +1,2780 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <title>Nexus GGUF Local Studio</title>
+    <script>
+    /* Theme engine (pure UI; app logic lives in the module script below).
+       - mode:    auto | light | dark
+       - palette: a preset or a custom accent; presets recolor accent AND neutrals.
+       Variables are generated from a few numbers (hue/saturation) per mode, so every
+       palette is legible in both light and dark. Ember = the stylesheet defaults. */
+    (function () {
+        var root = document.documentElement;
+        var K_MODE = 'nexus-theme', K_PAL = 'nexus-palette', K_CUSTOM = 'nexus-accent';
+        function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function write(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+
+        var PALETTES = {
+            original: { name: 'Original', h: 239, s: 84, nh: 222, ns: 14, explicit: { dark: {
+                '--bg-base': '#0B0E14', '--bg-surface': '#151923', '--bg-surface-hover': '#1E2433', '--bg-sunken': '#080A0F',
+                '--border': '#2A3143', '--border-strong': '#3B4560',
+                '--text-main': '#E2E8F0', '--text-muted': '#94A3B8', '--text-faint': '#64748B',
+                '--accent-primary': '#6366F1', '--accent-primary-hover': '#7B7EF5', '--accent-deep': '#3730A3', '--on-accent': '#FFFFFF',
+                '--accent-glow': 'rgba(99, 102, 241, .4)', '--accent-soft': 'rgba(99, 102, 241, .12)', '--glow': 'rgba(99, 102, 241, .10)',
+                '--accent-secondary': '#06B6D4', '--code-fg': '#60A5FA'
+            } } },
+            ember:  { name: 'Ember',    h: 18,  s: 82, nh: 30,  ns: 6,  dark: ['#e9783f', '#1b1a18'], light: ['#c24a14', '#fffcf6'] },
+            amber:  { name: 'Amber',    h: 42,  s: 88, nh: 40,  ns: 9  },
+            forest: { name: 'Forest',   h: 148, s: 52, nh: 150, ns: 9  },
+            ocean:  { name: 'Ocean',    h: 207, s: 84, nh: 214, ns: 14 },
+            violet: { name: 'Violet',   h: 262, s: 78, nh: 258, ns: 12 },
+            rose:   { name: 'Rose',     h: 342, s: 76, nh: 338, ns: 10 },
+            mono:   { name: 'Graphite', h: 0,   s: 0,  nh: 0,   ns: 0,  fixedL: { dark: 88, light: 18 } }
+        };
+        var ORDER = ['original', 'ember', 'amber', 'forest', 'ocean', 'violet', 'rose', 'mono'];
+        var VARS = ['--bg-base', '--bg-surface', '--bg-surface-hover', '--bg-sunken', '--border', '--border-strong',
+                    '--text-main', '--text-muted', '--text-faint', '--accent-primary', '--accent-primary-hover',
+                    '--accent-deep', '--on-accent', '--accent-glow', '--accent-soft', '--accent-secondary',
+                    '--code-fg', '--glow'];
+
+        function hsl(h, s, l, a) { return 'hsl(' + Math.round(h) + ' ' + Math.round(s) + '% ' + Math.round(l) + '%' + (a != null ? ' / ' + a : '') + ')'; }
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+        function hexToHsl(hex) {
+            var m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return null;
+            var n = parseInt(m[1], 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+            var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn, h = 0, sat = 0;
+            if (d) {
+                sat = d / (1 - Math.abs(2 * l - 1));
+                h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+                h = (h * 60 + 360) % 360;
+            }
+            return { h: h, s: sat * 100, l: l * 100 };
+        }
+        function hslToRgb(h, s, l) {
+            s /= 100; l /= 100;
+            var k = function (n) { return (n + h / 30) % 12; }, a = s * Math.min(l, 1 - l);
+            var f = function (n) { return l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); };
+            return [f(0), f(8), f(4)];
+        }
+        function luminance(rgb) {
+            var c = rgb.map(function (v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+            return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        }
+        function contrast(l1, l2) { var a = Math.max(l1, l2), b = Math.min(l1, l2); return (a + 0.05) / (b + 0.05); }
+
+        // walk lightness (dir = +1 / -1) until ok(L) holds; returns the last candidate if none does
+        function fit(startL, dir, lo, hi, ok) {
+            var L = startL;
+            while (!ok(L) && L + dir >= lo && L + dir <= hi) L += dir;
+            return L;
+        }
+        var INK = [0.10, 0.07, 0.05];
+        // returns {var: value}, or null for the stylesheet defaults
+        function build(p, mode) {
+            if (!p || p.id === 'ember') return null;
+            if (p.explicit && p.explicit[mode]) return p.explicit[mode];
+            var dark = mode === 'dark';
+            var h = p.h, s = clamp(p.s, 0, 92), nh = p.nh, ns = p.ns;
+            var ls = clamp(ns * 2.4, 0, 28);
+            var baseRgb = hslToRgb(nh, dark ? ns : ls, dark ? 7 : 94), baseLum = luminance(baseRgb);
+            var sunkRgb = hslToRgb(nh, dark ? ns : ls, dark ? 5 : 88), sunkLum = luminance(sunkRgb);
+
+            // accent: text on it must hit 4.5:1 and it must stand off the page at >= 3.3:1
+            var L = p.fixedL ? p.fixedL[mode] : fit(dark ? 62 : 44, dark ? 1 : -1, 24, 84, function (l) {
+                var a = luminance(hslToRgb(h, s, l));
+                return Math.max(contrast(a, 1), contrast(a, luminance(INK))) >= 4.5 && contrast(a, baseLum) >= 3.3;
+            });
+            var accLum = luminance(hslToRgb(h, s, L));
+            var onAcc = contrast(accLum, 1) >= contrast(accLum, luminance(INK)) ? '#ffffff' : '#1a120c';
+            // code colour: readable on the recessed surface
+            var cs = p.s ? (dark ? 55 : 62) : 0;
+            var codeL = fit(dark ? 80 : 28, dark ? 1 : -1, 10, 94, function (l) { return contrast(luminance(hslToRgb(h, cs, l)), sunkLum) >= 5; });
+
+            var v = {};
+            if (dark) {
+                v['--bg-base'] = hsl(nh, ns, 7);            v['--bg-surface'] = hsl(nh, ns, 10);
+                v['--bg-surface-hover'] = hsl(nh, ns, 14);  v['--bg-sunken'] = hsl(nh, ns, 5);
+                v['--border'] = hsl(nh, ns, 17);            v['--border-strong'] = hsl(nh, ns, 25);
+                v['--text-main'] = hsl(nh, Math.min(ns + 14, 24), 90);
+                v['--text-muted'] = hsl(nh, ns * 0.9, 65);  v['--text-faint'] = hsl(nh, ns * 0.8, 46);
+                v['--accent-primary-hover'] = hsl(h, s, clamp(L + 7, 0, 97));
+                v['--accent-deep'] = hsl(h, s, 28);
+                v['--accent-glow'] = hsl(h, s, L, 0.32); v['--accent-soft'] = hsl(h, s, L, 0.11); v['--glow'] = hsl(h, s, L, 0.10);
+                v['--accent-secondary'] = hsl((h + 165) % 360, p.s ? 40 : 0, 64);
+            } else {
+                v['--bg-base'] = hsl(nh, ls, 94);           v['--bg-surface'] = hsl(nh, ls ? clamp(ls + 10, 0, 60) : 0, 98.5);
+                v['--bg-surface-hover'] = hsl(nh, ls, 90);  v['--bg-sunken'] = hsl(nh, ls, 88);
+                v['--border'] = hsl(nh, ls * 0.9, 83);      v['--border-strong'] = hsl(nh, ls * 0.8, 74);
+                v['--text-main'] = hsl(nh, ns ? 26 : 0, 12);
+                v['--text-muted'] = hsl(nh, ns ? 14 : 0, 34); v['--text-faint'] = hsl(nh, ns ? 10 : 0, 55);
+                v['--accent-primary-hover'] = hsl(h, s, clamp(L + (p.fixedL ? 12 : -6), 0, 97));
+                v['--accent-deep'] = hsl(h, s, 24);
+                v['--accent-glow'] = hsl(h, s, L, 0.28); v['--accent-soft'] = hsl(h, s, L, 0.09); v['--glow'] = hsl(h, s, L, 0.08);
+                v['--accent-secondary'] = hsl((h + 165) % 360, p.s ? 45 : 0, 32);
+            }
+            v['--accent-primary'] = hsl(h, s, L); v['--on-accent'] = onAcc;
+            v['--code-fg'] = hsl(h, cs, codeL);
+            return v;
+        }
+        function customPalette(hex) {
+            var c = hexToHsl(hex) || { h: 18, s: 80 };
+            var gray = c.s < 8;
+            return { id: 'custom', name: 'Custom', h: c.h, s: gray ? 0 : clamp(c.s, 45, 90), nh: c.h, ns: gray ? 0 : 11, fixedL: gray ? { dark: 88, light: 18 } : null };
+        }
+
+        var state = {
+            mode: (function () { var m = read(K_MODE); return m === 'light' || m === 'auto' ? m : 'dark'; })(),
+            palette: read(K_PAL) || 'original',
+            custom: read(K_CUSTOM) || '#3aa6a0'
+        };
+        if (state.palette !== 'custom' && !PALETTES[state.palette]) state.palette = 'ember';
+        ORDER.concat(['custom']).forEach(function (id) { if (PALETTES[id]) PALETTES[id].id = id; });
+
+        function effective() {
+            if (state.mode !== 'auto') return state.mode;
+            return window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        function currentPalette() { return state.palette === 'custom' ? customPalette(state.custom) : PALETTES[state.palette]; }
+
+        function apply() {
+            if (state.mode === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', state.mode);
+            var vars = build(currentPalette(), effective());
+            VARS.forEach(function (k) { root.style.removeProperty(k); });
+            if (vars) Object.keys(vars).forEach(function (k) { root.style.setProperty(k, vars[k]); });
+            root.setAttribute('data-palette', state.palette);
+            try { var meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = getComputedStyle(root).getPropertyValue('--bg-base').trim(); } catch (e) {}
+        }
+        apply();   // before first paint: no flash
+        if (window.matchMedia) {
+            var mq = matchMedia('(prefers-color-scheme: light)');
+            var onChange = function () { if (state.mode === 'auto') { apply(); ui.paint && ui.paint(); } };
+            if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
+        }
+
+        var ui = {};
+        function swatchColors(id) {
+            var mode = effective();
+            if (id === 'ember') return PALETTES.ember[mode];
+            var p = id === 'custom' ? customPalette(state.custom) : PALETTES[id];
+            var v = build(p, mode);
+            return [v['--accent-primary'], v['--bg-surface']];
+        }
+        function setMode(m) { state.mode = m; write(K_MODE, m); apply(); ui.paint(); }
+        function setPalette(id) { state.palette = id; write(K_PAL, id); apply(); ui.paint(); }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var themeBtn = document.getElementById('themeBtn');
+            var seg = document.getElementById('modeSeg');
+            var sw = document.getElementById('swatches');
+            var hint = document.getElementById('paletteHint');
+            var customIn = document.getElementById('customAccent');
+            var customLbl = document.getElementById('customSwatch');
+
+            if (sw) ORDER.forEach(function (id) {
+                var b = document.createElement('button');
+                b.type = 'button'; b.className = 'swatch'; b.dataset.palette = id;
+                b.setAttribute('aria-label', PALETTES[id].name + ' palette'); b.title = PALETTES[id].name;
+                b.addEventListener('click', function () { setPalette(id); });
+                sw.insertBefore(b, customLbl || null);
+            });
+            if (customIn) {
+                customIn.value = state.custom;
+                customIn.addEventListener('input', function () { state.custom = customIn.value; write(K_CUSTOM, state.custom); state.palette = 'custom'; write(K_PAL, 'custom'); apply(); ui.paint(); });
+            }
+            if (seg) seg.addEventListener('click', function (e) {
+                var b = e.target.closest && e.target.closest('button[data-mode]'); if (b) setMode(b.dataset.mode);
+            });
+            if (themeBtn) themeBtn.addEventListener('click', function () { setMode(effective() === 'light' ? 'dark' : 'light'); });
+
+            ui.paint = function () {
+                if (themeBtn) { var l = effective() === 'light'; themeBtn.textContent = l ? '☾' : '☀'; themeBtn.title = l ? 'Switch to dark' : 'Switch to light'; }
+                if (seg) Array.prototype.forEach.call(seg.querySelectorAll('button'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)); });
+                if (sw) Array.prototype.forEach.call(sw.querySelectorAll('.swatch[data-palette]'), function (b) {
+                    var c = swatchColors(b.dataset.palette);
+                    b.style.background = 'linear-gradient(135deg, ' + c[0] + ' 0 54%, ' + c[1] + ' 54% 100%)';
+                    b.setAttribute('aria-pressed', String(b.dataset.palette === state.palette));
+                });
+                if (customLbl) {
+                    var cc = swatchColors('custom');
+                    customLbl.style.setProperty('--custom-accent', cc[0]);
+                    customLbl.setAttribute('aria-pressed', String(state.palette === 'custom'));
+                }
+                if (hint) hint.textContent = (state.palette === 'custom' ? 'Custom' : PALETTES[state.palette].name) + ' · ' + (state.mode === 'auto' ? 'follows your system (' + effective() + ')' : state.mode) + '. Saved in this browser.';
+            };
+            ui.paint();
+
+            // mobile drawer
+            var body = document.body;
+            function openMenu() { body.classList.add('sidebar-open'); }
+            function closeMenu() { body.classList.remove('sidebar-open'); }
+            var m = document.getElementById('menuBtn'); if (m) m.addEventListener('click', openMenu);
+            var c = document.getElementById('sidebarClose'); if (c) c.addEventListener('click', closeMenu);
+            var sc = document.getElementById('scrim'); if (sc) sc.addEventListener('click', closeMenu);
+            ['ggufInput', 'draftInput', 'mmprojInput'].forEach(function (id) {
+                var el = document.getElementById(id); if (el) el.addEventListener('change', closeMenu);
+            });
+            document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+        });
+    })();
+    </script>
+    <style>
+        /* =====================================================================
+           NEXUS STUDIO — "ink & ember"
+           Warm graphite + paper, one ember accent. Serif for the model's voice,
+           sans for the interface, mono for machine output. Auto light/dark.
+           ===================================================================== */
+        :root {
+            color-scheme: dark;
+            --bg-base: #131211;
+            --bg-surface: #1b1a18;
+            --bg-surface-hover: #262421;
+            --bg-sunken: #0e0d0c;
+            --border: #2d2a26;
+            --border-strong: #423d37;
+            --text-main: #ece6dc;
+            --text-muted: #a2998d;
+            --text-faint: #716960;
+            --accent-primary: #e9783f;
+            --accent-primary-hover: #f58d57;
+            --accent-deep: #8a3510;
+            --on-accent: #1c0e06;
+            --accent-glow: rgba(233, 120, 63, .32);
+            --accent-soft: rgba(233, 120, 63, .11);
+            --accent-secondary: #74b9b4;
+            --danger: #ea5d54;
+            --success: #98c982;
+            --warning: #e8b04d;
+            --code-fg: #e8caa6;
+            --code-inline-bg: rgba(255, 255, 255, .07);
+            --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+            --shadow-lg: 0 30px 80px rgba(0, 0, 0, .55);
+            --scrim: rgba(8, 7, 6, .64);
+            --glow: rgba(233, 120, 63, .10);
+            --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+            --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, Consolas, monospace;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --radius-lg: 20px;
+        }
+
+        :root[data-theme="light"] {
+            color-scheme: light;
+            --bg-base: #f4efe5;
+            --bg-surface: #fffcf6;
+            --bg-surface-hover: #efe8d9;
+            --bg-sunken: #ebe3d3;
+            --border: #ded4c1;
+            --border-strong: #c8bca4;
+            --text-main: #241f19;
+            --text-muted: #6a6155;
+            --text-faint: #968b7b;
+            --accent-primary: #c24a14;
+            --accent-primary-hover: #b24512;
+            --accent-deep: #7a2f0c;
+            --on-accent: #fffaf4;
+            --accent-glow: rgba(200, 80, 26, .28);
+            --accent-soft: rgba(200, 80, 26, .09);
+            --accent-secondary: #2c7a76;
+            --danger: #c0352e;
+            --success: #3b7a2d;
+            --warning: #946200;
+            --code-fg: #7a3a12;
+            --code-inline-bg: rgba(36, 31, 25, .07);
+            --shadow: 0 10px 30px rgba(60, 40, 10, .12);
+            --shadow-lg: 0 30px 80px rgba(60, 40, 10, .26);
+            --scrim: rgba(40, 30, 15, .46);
+            --glow: rgba(200, 80, 26, .08);
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root:not([data-theme="dark"]) {
+                color-scheme: light;
+                --bg-base: #f4efe5;
+                --bg-surface: #fffcf6;
+                --bg-surface-hover: #efe8d9;
+                --bg-sunken: #ebe3d3;
+                --border: #ded4c1;
+                --border-strong: #c8bca4;
+                --text-main: #241f19;
+                --text-muted: #6a6155;
+                --text-faint: #968b7b;
+                --accent-primary: #c24a14;
+                --accent-primary-hover: #b24512;
+                --accent-deep: #7a2f0c;
+                --on-accent: #fffaf4;
+                --accent-glow: rgba(200, 80, 26, .28);
+                --accent-soft: rgba(200, 80, 26, .09);
+                --accent-secondary: #2c7a76;
+                --danger: #c0352e;
+                --success: #3b7a2d;
+                --warning: #946200;
+                --code-fg: #7a3a12;
+                --code-inline-bg: rgba(36, 31, 25, .07);
+                --shadow: 0 10px 30px rgba(60, 40, 10, .12);
+                --shadow-lg: 0 30px 80px rgba(60, 40, 10, .26);
+                --scrim: rgba(40, 30, 15, .46);
+                --glow: rgba(200, 80, 26, .08);
+            }
+        }
+
+        * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+        [hidden] { display: none !important; }
+        ::selection { background: var(--accent-glow); }
+        :focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+
+        html, body {
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            background: var(--bg-base); color: var(--text-main);
+            font-family: var(--font-ui);
+            -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+            overflow: hidden;
+        }
+        body { display: flex; }
+        @supports (height: 100dvh) { html, body { height: 100dvh; } }
+
+        ::-webkit-scrollbar { width: 9px; height: 9px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: content-box; border: 2px solid transparent; }
+
+        #app { display: flex; width: 100%; height: 100%; }
+
+        /* ---------------------------------------------------------------- sidebar */
+        #sidebar {
+            width: 304px; flex-shrink: 0;
+            background: var(--bg-surface); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            z-index: 20; min-height: 0; overflow-y: auto; overflow-x: hidden;
+        }
+        .brand-header { padding: 22px 22px 14px; flex-shrink: 0; }
+        .brand-row { display: flex; align-items: center; gap: 12px; }
+        .brand-mark {
+            width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+            background: radial-gradient(circle at 34% 30%, var(--accent-primary-hover), var(--accent-primary) 55%, var(--accent-deep));
+            box-shadow: 0 0 0 5px var(--accent-soft);
+        }
+        .brand-header h1 {
+            margin: 0; font-family: var(--font-serif); font-size: 1.55rem; font-weight: 600;
+            letter-spacing: -.015em; line-height: 1;
+        }
+        .brand-header h1 em { font-style: italic; font-weight: 400; color: var(--accent-primary); }
+        .sidebar-close { display: none; margin-left: auto; }
+        #modelStatus {
+            margin: 14px 0 0; padding: 7px 11px;
+            font: 500 .7rem/1.4 var(--font-mono); color: var(--text-muted);
+            background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .control-panel { padding: 8px 22px 20px; display: flex; flex-direction: column; gap: 22px; flex-shrink: 0; }
+        .side-group { display: flex; flex-direction: column; gap: 9px; }
+        .group-label { font: 700 .62rem/1 var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--text-faint); }
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        .file-upload-btn {
+            display: block; width: 100%; text-align: center; cursor: pointer;
+            background: var(--accent-primary); color: var(--on-accent);
+            border: none; padding: 13px; border-radius: var(--radius);
+            font-size: .92rem; font-weight: 650; letter-spacing: .01em;
+            box-shadow: 0 8px 22px var(--accent-glow);
+            transition: transform .15s, background .15s, box-shadow .15s;
+        }
+        .file-upload-btn:hover { background: var(--accent-primary-hover); transform: translateY(-1px); }
+        .file-upload-btn:active { transform: none; }
+        .file-upload-btn input, .draft-btn input { display: none; }
+        .file-hint { font-size: .68rem; color: var(--text-muted); line-height: 1.5; }
+
+        .draft-btn {
+            display: block; width: 100%; text-align: left; cursor: pointer;
+            background: transparent; border: 1px dashed var(--border-strong); color: var(--text-muted);
+            padding: 10px 13px; border-radius: var(--radius); font-size: .8rem; font-weight: 600;
+            transition: border-color .15s, color .15s, background .15s;
+        }
+        .draft-btn:hover { border-color: var(--accent-primary); color: var(--text-main); background: var(--accent-soft); }
+
+        .settings-btn {
+            position: relative; width: 100%; text-align: left; cursor: pointer;
+            background: var(--bg-base); border: 1px solid var(--border); color: var(--text-main);
+            padding: 10px 13px; border-radius: var(--radius); font: 600 .86rem var(--font-ui);
+            transition: border-color .15s, background .15s;
+        }
+        .settings-btn:hover { border-color: var(--accent-primary); background: var(--bg-surface-hover); }
+        .settings-dot {
+            position: absolute; top: 50%; right: 14px; transform: translateY(-50%);
+            width: 9px; height: 9px; border-radius: 50%;
+            background: var(--warning); box-shadow: 0 0 8px var(--warning); display: none;
+        }
+        .settings-dot.show { display: block; }
+
+        #systemPrompt {
+            width: 100%; background: var(--bg-base); color: var(--text-main);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 10px 12px; font-family: var(--font-ui); font-size: .82rem; line-height: 1.5;
+            resize: vertical; min-height: 40px; max-height: 160px; outline: none;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        #systemPrompt:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-soft); }
+        #systemPrompt::placeholder, textarea::placeholder { color: var(--text-faint); }
+
+        .ghost-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+            padding: 9px 10px; border-radius: var(--radius); font: 600 .8rem var(--font-ui); cursor: pointer;
+            transition: border-color .15s, color .15s, background .15s;
+        }
+        .ghost-btn:hover { border-color: var(--accent-primary); color: var(--text-main); background: var(--accent-soft); }
+        .ghost-btn:disabled { opacity: .38; cursor: not-allowed; background: transparent; border-color: var(--border); color: var(--text-muted); }
+
+        select {
+            width: 100%; background: var(--bg-base); color: var(--text-main);
+            border: 1px solid var(--border-strong); border-radius: var(--radius);
+            padding: 10px 12px; font-family: var(--font-ui); font-size: .85rem; outline: none; cursor: pointer;
+        }
+        select:focus { border-color: var(--accent-primary); }
+
+        #progress-container { padding: 4px 22px 18px; display: none; flex-shrink: 0; }
+        .progress-track { background: var(--bg-sunken); height: 5px; border-radius: 3px; overflow: hidden; margin-bottom: 9px; position: relative; border: 1px solid var(--border); }
+        .progress-fill { background: var(--accent-primary); height: 100%; width: 0%; border-radius: 3px; transition: width .2s ease; }
+        .progress-fill.indeterminate { width: 30% !important; animation: indeterminate 1.1s ease-in-out infinite; }
+        @keyframes indeterminate { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+        .progress-label { font: 600 .68rem var(--font-mono); color: var(--text-muted); text-align: center; letter-spacing: .04em; }
+
+        .terminal-header { padding: 6px 22px 0; font: 700 .62rem/1 var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--text-faint); flex-shrink: 0; }
+        #diagnostic-hud {
+            flex: 1; min-height: 190px; overflow-y: auto;
+            margin: 10px 16px 16px; padding: 12px 14px;
+            background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius);
+            font-family: var(--font-mono); font-size: .69rem; line-height: 1.6; word-break: break-word;
+        }
+        .log-error { color: var(--danger); }
+        .log-warn { color: var(--warning); }
+        .log-info { color: var(--accent-secondary); }
+        .log-system { color: var(--text-muted); }
+        .log-success { color: var(--success); }
+
+        /* ------------------------------------------------------------- main column */
+        #main-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg-base); position: relative; min-width: 0; min-height: 0; }
+        #main-chat::before {
+            content: ""; position: absolute; inset: 0 0 auto 0; height: 420px; pointer-events: none;
+            background: radial-gradient(55% 100% at 50% 0%, var(--glow), transparent 72%);
+        }
+        #topbar { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 10px 16px 0; flex-shrink: 0; }
+        .topbar-title { display: none; font-family: var(--font-serif); font-size: 1.15rem; font-weight: 600; letter-spacing: -.01em; }
+        .topbar-title em { font-style: italic; font-weight: 400; color: var(--accent-primary); }
+        .topbar-spacer { flex: 1; }
+        .icon-btn {
+            width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+            background: transparent; border: 1px solid transparent; color: var(--text-muted);
+            border-radius: 50%; font-size: 1.05rem; cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+        }
+        .icon-btn:hover { background: var(--bg-surface-hover); color: var(--text-main); border-color: var(--border); }
+        #menuBtn { display: none; }
+
+        #chat-history { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 28px 36px; display: flex; flex-direction: column; gap: 30px; position: relative; }
+
+        .empty-state { margin: auto; text-align: center; max-width: 540px; color: var(--text-muted); animation: fadeIn .5s ease-out; padding: 16px 0; }
+        .empty-state .empty-icon {
+            width: 58px; height: 58px; margin: 0 auto 20px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--on-accent);
+            background: radial-gradient(circle at 34% 30%, var(--accent-primary-hover), var(--accent-primary) 58%, var(--accent-deep));
+            box-shadow: 0 0 0 9px var(--accent-soft), 0 12px 34px var(--accent-glow);
+        }
+        .empty-state h2 { margin: 0 0 10px; font-family: var(--font-serif); font-size: 2.4rem; font-weight: 500; letter-spacing: -.025em; color: var(--text-main); line-height: 1.1; }
+        .empty-state h2 em { font-style: italic; font-weight: 400; color: var(--accent-primary); }
+        .empty-state > p { margin: 0 0 28px; font-size: 1rem; line-height: 1.6; font-family: var(--font-serif); font-style: italic; }
+        .steps { text-align: left; display: inline-flex; flex-direction: column; gap: 13px; }
+        .steps div { display: flex; align-items: center; gap: 13px; font-size: .88rem; color: var(--text-main); }
+        .steps span {
+            width: 25px; height: 25px; flex-shrink: 0; border-radius: 50%;
+            border: 1px solid var(--accent-primary); color: var(--accent-primary);
+            display: flex; align-items: center; justify-content: center; font: 700 .72rem var(--font-ui);
+        }
+        .empty-state details { text-align: left; margin-top: 14px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; font-size: .82rem; }
+        .empty-state details:first-of-type { margin-top: 26px; }
+        .empty-state summary { cursor: pointer; color: var(--text-main); font-weight: 600; user-select: none; }
+        .empty-state details[open] summary { color: var(--accent-primary); }
+        .empty-state details p { margin: 10px 0 4px; font-size: .8rem; line-height: 1.6; }
+
+        .system-note {
+            margin: 0 auto; max-width: 780px; width: fit-content; text-align: center;
+            font: 500 .72rem var(--font-mono); color: var(--text-muted);
+            background: var(--bg-surface); border: 1px solid var(--border);
+            padding: 8px 16px; border-radius: 18px; animation: fadeIn .3s ease-out;
+        }
+
+        /* ---------------------------------------------------------------- messages */
+        .message { display: flex; width: 100%; max-width: 780px; margin: 0 auto; gap: 14px; animation: fadeIn .25s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { flex-direction: row-reverse; }
+        .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .9rem; flex-shrink: 0; font-weight: 700; margin-top: 3px; }
+        .user .avatar { background: var(--bg-surface-hover); color: var(--text-muted); border: 1px solid var(--border); font-size: .72rem; }
+        .ai .avatar { background: radial-gradient(circle at 34% 30%, var(--accent-primary-hover), var(--accent-primary) 58%, var(--accent-deep)); color: var(--on-accent); }
+
+        .bubble { max-width: calc(100% - 46px); min-width: 0; padding: 12px 18px; border-radius: var(--radius-lg); font-size: .96rem; line-height: 1.65; word-wrap: break-word; overflow-x: auto; }
+        .user .bubble { background: var(--bg-surface-hover); border: 1px solid var(--border); border-top-right-radius: 6px; }
+        .ai .bubble { background: transparent; padding: 3px 0 0; flex: 1; font-family: var(--font-serif); font-size: 1.04rem; line-height: 1.74; }
+
+        .bubble p { margin: 0 0 .95em; }
+        .bubble > p:last-of-type { margin-bottom: 0; }
+        .bubble h3, .bubble h4, .bubble h5, .bubble h6 { margin: 1.3em 0 .5em; line-height: 1.3; font-weight: 650; letter-spacing: -.01em; }
+        .bubble h3 { font-size: 1.22em; }
+        .bubble h4 { font-size: 1.1em; }
+        .bubble h5, .bubble h6 { font-size: 1em; }
+        .bubble ul, .bubble ol { margin: 0 0 .95em; padding-left: 1.45em; }
+        .bubble li { margin: .3em 0; }
+        .bubble li::marker { color: var(--accent-primary); }
+        .bubble a { color: var(--accent-primary); text-underline-offset: 3px; }
+        .bubble strong { font-weight: 650; }
+        .bubble blockquote { margin: 0 0 .95em; padding: 4px 16px; border-left: 3px solid var(--accent-primary); color: var(--text-muted); background: var(--accent-soft); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-style: italic; }
+
+        pre { background: var(--bg-sunken); border: 1px solid var(--border); padding: 14px 16px; border-radius: var(--radius); overflow-x: auto; font-family: var(--font-mono); font-size: .8rem; line-height: 1.6; margin: 14px 0; font-style: normal; }
+        code { font-family: var(--font-mono); background: var(--code-inline-bg); padding: .12em .42em; border-radius: 5px; font-size: .85em; color: var(--text-main); font-style: normal; }
+        pre code { background: none; padding: 0; color: var(--code-fg); font-size: inherit; }
+
+        details.thought-process { margin: 0 0 20px; border-left: 2px solid var(--accent-primary); background: var(--accent-soft); border-radius: 0 var(--radius) var(--radius) 0; overflow: hidden; font-family: var(--font-ui); font-style: normal; }
+        details.thought-process summary { padding: 10px 14px; font-size: .76rem; font-weight: 650; letter-spacing: .03em; color: var(--text-muted); cursor: pointer; user-select: none; list-style: none; display: flex; align-items: center; gap: 9px; transition: color .2s; }
+        details.thought-process summary::-webkit-details-marker { display: none; }
+        details.thought-process summary:hover { color: var(--text-main); }
+        details.thought-process summary::before { content: ""; width: 6px; height: 6px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); transition: transform .15s; margin: 0 2px 0 1px; }
+        details.thought-process[open] summary::before { transform: rotate(45deg) translate(-1px, -1px); }
+        .thought-content { padding: 2px 16px 14px; font-family: var(--font-mono); font-size: .75rem; color: var(--text-muted); line-height: 1.65; max-height: 320px; overflow-y: auto; }
+        .thought-content p { margin: 0 0 .7em; }
+
+        .response-metrics { display: inline-flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; padding: 4px 13px; border: 1px solid var(--border); border-radius: 999px; font: 500 .68rem var(--font-mono); color: var(--text-faint); font-style: normal; }
+        .metrics-live { color: var(--accent-secondary); border-color: var(--border-strong); }
+        .pending { color: var(--text-muted); }
+        .caret { display: inline-block; width: 8px; height: 1.05em; margin-left: 3px; background: var(--accent-primary); border-radius: 2px; vertical-align: text-bottom; animation: blink 1s steps(2, start) infinite; }
+        @keyframes blink { to { visibility: hidden; } }
+        .copy-btn { margin: 10px 0 0 10px; background: transparent; border: 1px solid var(--border); color: var(--text-muted); font: 600 .66rem var(--font-ui); padding: 4px 11px; border-radius: 999px; cursor: pointer; transition: all .15s; vertical-align: top; }
+        .copy-btn:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+
+        /* ---------------------------------------------------------------- composer */
+        .input-wrapper { padding: 28px 28px 24px; margin-top: -20px; display: flex; flex-direction: column; align-items: center; gap: 9px; flex-shrink: 0; position: relative; background: linear-gradient(to top, var(--bg-base) 68%, transparent); }
+        .input-box {
+            width: 100%; max-width: 780px; display: flex; align-items: flex-end; gap: 6px; padding: 8px 9px 8px 8px;
+            background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: 26px;
+            box-shadow: var(--shadow); transition: border-color .2s, box-shadow .2s;
+        }
+        .input-box:focus-within { border-color: var(--accent-primary); box-shadow: var(--shadow), 0 0 0 3px var(--accent-soft); }
+        textarea { flex: 1; background: transparent; border: none; color: var(--text-main); padding: 10px 8px; font-family: var(--font-ui); font-size: 1rem; resize: none; outline: none; max-height: 150px; line-height: 1.5; }
+        .send-btn {
+            width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; margin-bottom: 1px;
+            background: var(--accent-primary); color: var(--on-accent); transition: transform .15s, background .15s;
+        }
+        .send-btn:disabled { background: var(--bg-surface-hover); color: var(--text-faint); cursor: not-allowed; transform: none; }
+        .send-btn:not(:disabled):hover { background: var(--accent-primary-hover); transform: scale(1.06); }
+        .send-btn.stopping { background: var(--danger); color: #fff; }
+        .send-btn.stopping:not(:disabled):hover { background: var(--danger); filter: brightness(1.1); }
+        .think-toggle {
+            flex-shrink: 0; margin-bottom: 4px; padding: 6px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+            background: transparent; border: 1px solid var(--border-strong); color: var(--text-muted);
+            font: 650 .7rem var(--font-ui); letter-spacing: .02em; transition: all .15s;
+        }
+        .think-toggle:hover { border-color: var(--accent-primary); color: var(--text-main); }
+        .think-toggle.on { color: var(--accent-primary); border-color: var(--accent-primary); background: var(--accent-soft); }
+        .think-toggle.off { opacity: .7; }
+        .attach-btn { flex-shrink: 0; width: 38px; height: 38px; margin-bottom: 1px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 50%; cursor: pointer; font-size: 1.1rem; color: var(--text-muted); transition: background .15s, color .15s; }
+        .attach-btn:hover { background: var(--bg-surface-hover); color: var(--text-main); }
+
+        .attach-tray { width: 100%; max-width: 780px; display: flex; flex-wrap: wrap; gap: 8px; }
+        .attach-tray[hidden] { display: none; }
+        .attach-chip { display: flex; align-items: center; gap: 9px; background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px 8px 5px 5px; font-size: .8rem; color: var(--text-main); max-width: 260px; box-shadow: var(--shadow); }
+        .attach-chip img { width: 38px; height: 38px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+        .attach-chip .doc { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; background: var(--bg-surface-hover); border-radius: 8px; }
+        .attach-chip .meta { display: flex; flex-direction: column; min-width: 0; }
+        .attach-chip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .attach-chip .sz { color: var(--text-muted); font: 500 .68rem var(--font-mono); }
+        .attach-chip button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: .95rem; padding: 4px 6px; border-radius: 6px; }
+        .attach-chip button:hover { color: var(--danger); background: var(--bg-surface-hover); }
+        .attach-warn { width: 100%; font-size: .76rem; color: var(--warning); line-height: 1.45; }
+        .msg-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+        .msg-attach img { max-width: 200px; max-height: 200px; border-radius: var(--radius); display: block; }
+        .msg-attach.text { background: var(--code-inline-bg); padding: 4px 10px; border-radius: 999px; font: 500 .76rem var(--font-ui); }
+        body.drag-over .input-box { border-color: var(--accent-primary); border-style: dashed; box-shadow: 0 0 0 4px var(--accent-soft); }
+
+        /* ---------------------------------------------------------------- settings */
+        .slider-row { margin-bottom: 4px; }
+        .slider-row label, .slider-row .lab { display: flex; justify-content: space-between; align-items: baseline; font: 700 .68rem var(--font-ui); color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 5px; }
+        .slider-row label span, .slider-row .lab span { color: var(--accent-primary); font: 600 .76rem var(--font-mono); text-transform: none; letter-spacing: 0; }
+        input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; cursor: pointer; accent-color: var(--accent-primary); margin: 0; }
+        input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--border-strong); }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--accent-primary); border: 2px solid var(--bg-surface); box-shadow: 0 0 0 1px var(--accent-primary); transition: transform .12s; }
+        input[type=range]:not(:disabled)::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--border-strong); }
+        input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--accent-primary); border: 2px solid var(--bg-surface); }
+        input[type=range]:disabled { opacity: .45; cursor: not-allowed; }
+        .slider-row.locked { opacity: .62; }
+        .lock-note { display: none; font-size: .68rem; color: var(--warning); margin-top: 4px; }
+        .slider-row.locked .lock-note { display: block; }
+        .perf-check { display: flex; align-items: center; gap: 9px; font-size: .78rem; color: var(--text-muted); margin: 10px 0 12px; cursor: pointer; }
+        .perf-check input { accent-color: var(--accent-primary); width: 15px; height: 15px; cursor: pointer; }
+
+        .settings-overlay { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 100; animation: fadeIn .15s ease-out; }
+        .settings-modal { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; background: var(--bg-surface); border: 1px solid var(--border-strong); border-radius: 22px; box-shadow: var(--shadow-lg); animation: pop .18s ease-out; overflow: hidden; }
+        @keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .settings-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 22px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        .settings-header h2 { margin: 0; font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; letter-spacing: -.01em; }
+        .icon-close { background: transparent; border: none; color: var(--text-muted); font-size: 1rem; cursor: pointer; padding: 6px 9px; border-radius: 8px; transition: all .15s; }
+        .icon-close:hover { color: var(--text-main); background: var(--bg-surface-hover); }
+        .settings-body { flex: 1; overflow-y: auto; min-height: 0; }
+        .settings-section { padding: 18px 22px; border-bottom: 1px solid var(--border); }
+        .settings-section:last-child { border-bottom: none; }
+        .section-label { font: 700 .64rem/1 var(--font-ui); color: var(--text-faint); text-transform: uppercase; letter-spacing: .16em; margin-bottom: 12px; }
+        .settings-hint { font-size: .72rem; color: var(--text-muted); margin: 9px 0 0; line-height: 1.55; }
+        .settings-hint + .slider-row { margin-top: 16px; }
+        .preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        @media (max-width: 420px) { .preset-grid { grid-template-columns: 1fr; } }
+        .preset-btn { background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 8px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; color: var(--text-muted); transition: all .15s; font-family: inherit; }
+        .preset-btn:hover { border-color: var(--accent-primary); color: var(--text-main); }
+        .preset-btn.active { border-color: var(--accent-primary); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent-primary) inset; }
+        .preset-name { font: 600 1.05rem var(--font-serif); color: var(--text-main); }
+        .preset-btn.active .preset-name::after { content: " ✓"; color: var(--accent-primary); }
+        .preset-spec { font: 500 .68rem var(--font-mono); color: var(--accent-primary); }
+        .preset-desc { font-size: .66rem; }
+        .adv-toggle-row { display: flex; gap: 14px; align-items: center; }
+        .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch .knob { position: absolute; inset: 0; background: var(--bg-base); border: 1px solid var(--border-strong); border-radius: 13px; transition: .2s; cursor: pointer; }
+        .switch .knob::before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: var(--text-muted); border-radius: 50%; transition: .2s; }
+        .switch input:checked + .knob { background: var(--accent-primary); border-color: var(--accent-primary); }
+        .switch input:checked + .knob::before { transform: translateX(20px); background: var(--on-accent); }
+        .switch input:focus-visible + .knob { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+        .advanced-section { background: var(--bg-sunken); }
+        .advanced-section .settings-section { border-bottom: 1px solid var(--border); }
+        .advanced-section .settings-section:last-child { border-bottom: none; }
+        .advanced-section .slider-row { margin-bottom: 14px; }
+        .advanced-section .slider-row:last-child { margin-bottom: 0; }
+        .settings-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+        .done-btn { background: var(--accent-primary); color: var(--on-accent); border: none; padding: 11px 26px; border-radius: 999px; font: 650 .88rem var(--font-ui); cursor: pointer; transition: transform .15s, background .15s; margin-left: auto; }
+        .done-btn:hover { background: var(--accent-primary-hover); transform: translateY(-1px); }
+        .reload-hint { display: flex; align-items: center; gap: 10px; font: 500 .72rem var(--font-mono); color: var(--warning); flex-wrap: wrap; }
+        .reload-btn { background: transparent; border: 1px solid var(--warning); color: var(--warning); padding: 7px 14px; border-radius: 999px; cursor: pointer; font: 650 .74rem var(--font-ui); transition: background .15s; }
+        .reload-btn:hover { background: var(--accent-soft); }
+
+        /* ------------------------------------------------------- appearance / palettes */
+        .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 999px; }
+        .seg button { background: transparent; border: none; color: var(--text-muted); padding: 7px 18px; border-radius: 999px; font: 650 .78rem var(--font-ui); cursor: pointer; transition: background .15s, color .15s; }
+        .seg button:hover { color: var(--text-main); }
+        .seg button[aria-pressed="true"] { background: var(--accent-primary); color: var(--on-accent); }
+        .sub-label { margin: 16px 0 10px; font: 700 .68rem var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+        .swatches { display: flex; flex-wrap: wrap; gap: 12px; }
+        .swatch {
+            position: relative; width: 36px; height: 36px; padding: 0; border-radius: 50%; cursor: pointer; display: inline-block;
+            border: 1px solid var(--border-strong); transition: transform .15s, box-shadow .15s;
+        }
+        .swatch:hover { transform: scale(1.1); }
+        .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent-primary); }
+        .custom-swatch { background: conic-gradient(from 0deg, #e5584f, #e8b04d, #98c982, #74b9b4, #5b8def, #a56bf0, #e5584f); overflow: hidden; }
+        .custom-swatch::after { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--custom-accent, var(--accent-primary)); border: 2px solid var(--bg-surface); pointer-events: none; }
+        .custom-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0; }
+
+        /* ---------------------------------------------------------------- mobile */
+        #scrim { display: none; }
+        @media (max-width: 820px) {
+            #sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: min(344px, 88vw); transform: translateX(-104%); transition: transform .26s ease; box-shadow: var(--shadow-lg); z-index: 60; }
+            body.sidebar-open #sidebar { transform: none; }
+            #scrim { display: block; position: fixed; inset: 0; background: var(--scrim); z-index: 50; opacity: 0; pointer-events: none; transition: opacity .2s; }
+            body.sidebar-open #scrim { opacity: 1; pointer-events: auto; }
+            #menuBtn, .sidebar-close { display: inline-flex; }
+            .topbar-title { display: block; }
+            #chat-history { padding: 8px 14px 24px; gap: 24px; }
+            .input-wrapper { padding: 6px 12px 14px; }
+            .empty-state h2 { font-size: 2rem; }
+            .think-toggle { padding: 6px 9px; }
+        }
+
+        @media (max-width: 560px) {
+            .avatar { display: none; }
+            .bubble { max-width: 100%; }
+            .user .bubble { max-width: 92%; }
+            .input-box { flex-wrap: wrap; border-radius: 22px; }
+            textarea { order: -1; flex: 1 1 100%; padding: 8px 10px 4px; }
+            .send-btn { margin-left: auto; }
+            .input-wrapper { margin-top: -16px; padding-top: 22px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+            .progress-fill.indeterminate { animation-duration: 1.1s !important; animation-iteration-count: infinite !important; }
+            .caret { animation-duration: 1s !important; animation-iteration-count: infinite !important; }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <aside id="sidebar">
+            <div class="brand-header">
+                <div class="brand-row">
+                    <span class="brand-mark" aria-hidden="true"></span>
+                    <h1>Nexus <em>Studio</em></h1>
+                    <button id="sidebarClose" class="icon-close sidebar-close" type="button" title="Close menu">✕</button>
+                </div>
+                <p id="modelStatus">no model loaded</p>
+            </div>
+
+            <div class="control-panel">
+                <section class="side-group">
+                    <div class="group-label">Model</div>
+                    <label class="file-upload-btn"><span>Load .GGUF Model</span><input type="file" id="ggufInput" accept=".gguf,.bin" multiple></label>
+                    <div class="file-hint">Split models: select all shards together.<br>File over ~2 GB? The ✂️ splitter will offer to split it into Downloads.
+                    </div>
+                </section>
+
+                <section class="side-group">
+                    <div class="group-label">Boosters</div>
+                    <label class="draft-btn">🎯 Draft model <span style="opacity:.6">(optional)</span><input type="file" id="draftInput" accept=".gguf,.bin"></label>
+                    <div id="draftStatus" class="file-hint">Small same-family model → up to ~2–3× faster via speculative
+                        decoding.</div>
+                    <button id="draftRemove" class="ghost-btn" type="button" hidden>✕ Remove draft</button>
+                    <label class="draft-btn">👁 Vision projector <span style="opacity:.6">(for images)</span><input type="file" id="mmprojInput" accept=".gguf,.bin"></label>
+                    <div id="mmprojStatus" class="file-hint">mmproj-*.gguf from your model's repo enables image input. You can also select it together with the model files.</div>
+                    <button id="mmprojRemove" class="ghost-btn" type="button" hidden>✕ Remove projector</button>
+                </section>
+
+                <section class="side-group">
+                    <div class="group-label">Session</div>
+                    <textarea id="systemPrompt" placeholder="System prompt (optional)…"></textarea>
+                    <button id="settingsBtn" class="settings-btn" type="button">⚙️ Settings<span id="settingsDot" class="settings-dot"></span></button>
+                    <div class="btn-row">
+                        <button id="newChatBtn" class="ghost-btn" type="button">🗑 New Chat</button>
+                        <button id="benchBtn" class="ghost-btn" type="button" disabled>⚡ Speed Test</button>
+                    </div>
+                </section>
+            </div>
+
+            <div id="progress-container">
+                <div class="progress-track">
+                    <div id="progress-bar" class="progress-fill"></div>
+                </div>
+                <div id="progress-text" class="progress-label">Awaiting model…</div>
+            </div>
+
+            <div class="terminal-header">System Diagnostics</div>
+            <div id="diagnostic-hud"></div>
+        </aside>
+
+        <main id="main-chat">
+            <header id="topbar">
+                <button id="menuBtn" class="icon-btn" type="button" aria-label="Open menu" title="Menu">☰</button>
+                <div class="topbar-title">Nexus <em>Studio</em></div>
+                <div class="topbar-spacer"></div>
+                <button id="themeBtn" class="icon-btn" type="button" aria-label="Toggle light / dark theme">☀</button>
+            </header>
+            <div id="chat-history">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">✦</div>
+                    <h2>Nexus <em>Studio</em></h2>
+                    <p>Run GGUF models entirely in your browser. Nothing leaves this machine.</p>
+                    <div class="steps">
+                        <div><span>1</span> Open <strong>⚙️ Settings</strong> and pick a preset</div>
+                        <div><span>2</span> Load a <code>.gguf</code> file (＋ optional 🎯 draft model)</div>
+                        <div><span>3</span> Chat — 🧠 toggles thinking, ⚡ Speed Test measures tok/s</div>
+                    </div>
+                    <details>
+                        <summary>🚀 WebGPU = fast, no COOP/COEP needed</summary>
+                        <p>If the HUD says WebGPU is available, pick the 🚀 engine in Settings → Advanced and restart —
+                            GPU inference works even in a plain about:blank tab, no special headers required.</p>
+                    </details>
+                    <details>
+                        <summary>🎯 Speculative decoding in one line</summary>
+                        <p>Load a tiny model from the same family (e.g. Qwen3-0.6B next to Qwen3-1.7B/4B). It drafts
+                            tokens fast, the big model verifies them in one batch — 1.5–3× on CPU, more variable on GPU.
+                            MTP drafter GGUFs (Gemma 4 / GLM) use the same slot.</p>
+                    </details>
+                    <details>
+                        <summary>🧵 CPU multi-thread only (COOP/COEP)</summary>
+                        <p>Only needed if you can't use WebGPU. Serve this file instead of opening it directly:</p>
+                        <pre><code>// serve.mjs — run: node serve.mjs  →  http://localhost:8000
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+http.createServer(async (req, res) =&gt; {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  try {
+    const path = req.url === '/' ? '/index.html' : req.url;
+    res.end(await readFile('.' + path));
+  } catch {
+    res.statusCode = 404; res.end('Not found');
+  }
+}).listen(8000);</code></pre>
+                    </details>
+                </div>
+            </div>
+
+            <div class="input-wrapper">
+                <div id="attachTray" class="attach-tray" hidden></div>
+                <div class="input-box">
+                    <button id="attachBtn" class="attach-btn" type="button" title="Attach images or text files (or drag &amp; drop / paste)">📎</button>
+                    <input type="file" id="attachInput" multiple hidden accept="image/*,text/*,.md,.markdown,.csv,.tsv,.json,.jsonl,.xml,.yaml,.yml,.toml,.ini,.cfg,.conf,.log,.js,.mjs,.cjs,.jsx,.ts,.tsx,.py,.java,.kt,.c,.h,.cc,.cpp,.hpp,.cs,.go,.rs,.rb,.php,.sh,.bash,.sql,.swift,.lua,.tex,.srt,.vtt,.html,.htm,.css,.scss">
+                    <button id="thinkToggle" class="think-toggle on" type="button" aria-pressed="true">🧠 Thinking: ON</button>
+                    <textarea id="userInput" rows="1" disabled placeholder="Engine offline — load a model first."></textarea>
+                    <button id="sendBtn" class="send-btn" disabled title="Send"></button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div id="scrim"></div>
+
+    <!-- ============ SETTINGS MODAL ============ -->
+    <div id="settingsOverlay" class="settings-overlay" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings">
+            <div class="settings-header">
+                <h2>⚙️ Settings</h2>
+                <button id="settingsClose" class="icon-close" type="button" title="Close">✕</button>
+            </div>
+
+            <div class="settings-body">
+                <div class="settings-section" id="appearanceSection">
+                    <div class="section-label">Appearance</div>
+                    <div class="seg" id="modeSeg" role="group" aria-label="Color mode">
+                        <button type="button" data-mode="auto" aria-pressed="false">Auto</button>
+                        <button type="button" data-mode="light" aria-pressed="false">Light</button>
+                        <button type="button" data-mode="dark" aria-pressed="true">Dark</button>
+                    </div>
+                    <div class="sub-label">Color theme</div>
+                    <div class="swatches" id="swatches">
+                        <label class="swatch custom-swatch" id="customSwatch" title="Custom color" aria-pressed="false">
+                            <input type="color" id="customAccent" value="#3aa6a0" aria-label="Custom accent color">
+                        </label>
+                    </div>
+                    <p class="settings-hint" id="paletteHint"></p>
+                </div>
+
+                <div class="settings-section">
+                    <div class="section-label">Performance preset</div>
+                    <div class="preset-grid">
+                        <button type="button" class="preset-btn" data-preset="small">
+            <span class="preset-name">Small</span>
+            <span class="preset-spec">4K ctx · 1K new</span>
+            <span class="preset-desc">Fast · low RAM</span>
+          </button>
+                        <button type="button" class="preset-btn" data-preset="medium">
+            <span class="preset-name">Medium</span>
+            <span class="preset-spec">6K ctx · 2K new</span>
+            <span class="preset-desc">Balanced</span>
+          </button>
+                        <button type="button" class="preset-btn" data-preset="big">
+            <span class="preset-name">Big</span>
+            <span class="preset-spec">8K ctx · 4K new</span>
+            <span class="preset-desc">Long reasoning</span>
+          </button>
+                    </div>
+                    <p class="settings-hint">Sets context size and max new tokens. New tokens apply immediately; context
+                        size needs an engine restart if a model is already loaded.
+                        <strong>Temperature is never changed by presets.</strong></p>
+                </div>
+
+                <div class="settings-section">
+                    <div class="section-label">Temperature</div>
+                    <div class="slider-row locked" id="tempRow">
+                        <label>Sampling temperature <span id="tempValue">0.60</span></label>
+                        <input type="range" id="tempSlider" min="0" max="1.5" step="0.05" value="0.6" disabled>
+                        <span class="lock-note">🔒 Locked — turn on Advanced mode to change</span>
+                    </div>
+                </div>
+
+                <div class="settings-section adv-toggle-row">
+                    <label class="switch">
+          <input type="checkbox" id="advancedToggle">
+          <span class="knob"></span>
+        </label>
+                    <div>
+                        <div class="section-label" style="margin:0">Advanced mode</div>
+                        <p class="settings-hint" style="margin:2px 0 0">Manual sliders, performance tuning and engine
+                            selection</p>
+                    </div>
+                </div>
+
+                <div id="advancedSection" class="advanced-section" hidden>
+                    <div class="settings-section">
+                        <div class="section-label">Engine</div>
+                        <select id="engineSelect">
+            <option value="webgpu">🚀 WebGPU (no COOP/COEP needed)</option>
+            <option value="multithread">🧵 Multi-Thread CPU</option>
+            <option value="singlethread">🐢 Single-Thread CPU</option>
+          </select>
+                        <p class="settings-hint">WebGPU uses your GPU and needs no special headers — works in
+                            about:blank. CPU multi-thread needs COOP/COEP. Engine choice applies on restart.</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="section-label">🎯 Speculative decoding</div>
+                        <p class="settings-hint" id="draftSummary">No draft model selected. Pick one with 🎯 Draft model
+                            in the sidebar.</p>
+                        <div class="slider-row" style="margin-bottom:12px">
+                            <div class="lab">Draft tokens per try <span id="draftMaxVal">16</span></div>
+                            <input type="range" id="draftMaxSlider" min="4" max="32" step="1" value="16">
+                        </div>
+                        <div class="slider-row">
+                            <div class="lab">Min acceptance probability <span id="draftPVal">0.90</span></div>
+                            <input type="range" id="draftPSlider" min="0.5" max="1" step="0.05" value="0.9">
+                        </div>
+                        <p class="settings-hint">The draft model must share the main model's family/tokenizer
+                            (Qwen3-0.6B drafts for Qwen3-1.7B/4B; mismatched families fail or produce garbage — the app
+                            warns on architecture mismatch). Applies on restart. Always compare with ⚡ Speed Test, draft
+                            on vs off — on GPU it can be slower, on single-thread CPU it's usually the biggest win
+                            available. MTP drafter GGUFs (Gemma 4 / GLM assistant models) load through the same 🎯 slot;
+                            models with built-in MTP (DeepSeek-style) have no switch in this engine wrapper.</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="section-label">⚡ Token speed</div>
+                        <div class="slider-row" style="margin-bottom:12px">
+                            <div class="lab">KV cache <span id="kvLabel">q8_0</span></div>
+                            <input type="range" id="kvSlider" min="0" max="2" step="1" value="1">
+                        </div>
+                        <label class="perf-check"><input type="checkbox" id="faCheck" checked> Flash Attention <span style="opacity:.6">(required for quantized V-cache)</span></label>
+                        <div class="slider-row">
+                            <div class="lab">Prompt batch <span id="batchVal">2048</span></div>
+                            <input type="range" id="batchSlider" min="512" max="4096" step="256" value="2048">
+                        </div>
+                        <p class="settings-hint">KV cache q8_0 halves cache RAM and speeds up long-context decoding;
+                            batch 2048 speeds up prompt processing. If the engine rejects a combo (e.g. Flash Attention
+                            unsupported on WebGPU), it auto-retries with safe settings. Applies on restart — use ⚡ Speed
+                            Test before/after to compare.</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="section-label">Context &amp; generation</div>
+                        <div class="slider-row">
+                            <label>Context size (tokens) <span id="ctxValue">6144</span></label>
+                            <input type="range" id="ctxSlider" min="1024" max="16384" step="512" value="6144">
+                        </div>
+                        <div class="slider-row">
+                            <label>Max new tokens <span id="predictValue">2048</span></label>
+                            <input type="range" id="predictSlider" min="128" max="8192" step="128" value="2048">
+                        </div>
+                        <p class="settings-hint">Moving these off a preset marks it as custom. Context applies on
+                            restart.</p>
+                    </div>
+
+                    <div class="settings-section">
+                        <div class="section-label">Sampling</div>
+                        <div class="slider-row">
+                            <label>Top P <span id="topPValue">0.95</span></label>
+                            <input type="range" id="topPSlider" min="0.1" max="1" step="0.05" value="0.95">
+                        </div>
+                        <div class="slider-row">
+                            <label>Top K <span id="topKValue">40</span></label>
+                            <input type="range" id="topKSlider" min="0" max="100" step="1" value="40">
+                        </div>
+                        <div class="slider-row">
+                            <label>Repeat penalty <span id="penaltyValue">1.10</span></label>
+                            <input type="range" id="penaltySlider" min="1" max="1.5" step="0.01" value="1.1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-footer">
+                <div id="reloadHint" class="reload-hint" hidden>
+                    <span id="reloadHintText"></span>
+                    <button id="reloadModelBtn" class="reload-btn" type="button">♻ Restart Engine</button>
+                </div>
+                <button id="settingsDone" class="done-btn" type="button">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ SPLITTER POPUP MODAL ============ -->
+    <div id="splitOverlay" class="settings-overlay" hidden>
+        <div class="settings-modal" role="dialog" aria-modal="true" aria-label="Split oversized model">
+            <div class="settings-header">
+                <h2>⚠️ File Too Large</h2>
+                <button id="splitClose" class="icon-close" type="button" title="Close">✕</button>
+            </div>
+            <div class="settings-body">
+                <div class="settings-section">
+                    <p id="splitMsg" style="font-size:.9rem;margin:0;line-height:1.5"></p>
+                    <p id="splitPlan" class="settings-hint"
+                        style="font-family:'Fira Code',monospace;font-size:.72rem;white-space:pre-wrap;margin-top:12px">
+                    </p>
+                    <p class="settings-hint" style="margin-top:12px">No quality is lost — bytes are copied exactly, only
+                        cut at tensor boundaries.</p>
+                    <p id="splitWarn" class="settings-hint" style="color:var(--warning);font-weight:600" hidden></p>
+                </div>
+                <div class="settings-section" id="splitProgressSection" hidden>
+                    <div class="progress-track">
+                        <div id="splitBar" class="progress-fill"></div>
+                    </div>
+                    <div id="splitStatus" class="progress-label"></div>
+                </div>
+            </div>
+            <div class="settings-footer">
+                <button id="splitCancelBtn" class="reload-btn" type="button">Cancel</button>
+                <button id="splitGoBtn" class="done-btn" type="button">✂️ Split into Downloads</button>
+                <button id="splitOkBtn" class="done-btn" type="button" hidden>Done — I'll select the shards</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        /* ================= ENGINE (verified v3.6.1 + v2.3.1 fallback) ================= */
+const PREFERRED_VERSION = '3.6.1';  // set to '2.3.1' to skip v3 entirely
+
+const ENGINE_V3 = {
+  version: '3.6.1',
+  entry: 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.6.1/esm/index.js',
+  config: { default: 'https://cdn.jsdelivr.net/npm/@wllama/wllama@3.6.1/esm/wasm/wllama.wasm' },
+};
+const ENGINE_V2 = {
+  version: '2.3.1',
+  entry: 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/index.js',
+  config: {
+    'single-thread/wllama.wasm':      'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/single-thread/wllama.wasm',
+    'multi-thread/wllama.wasm':       'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/multi-thread/wllama.wasm',
+    'multi-thread/wllama.worker.mjs': 'https://cdn.jsdelivr.net/npm/@wllama/wllama@2.3.1/esm/multi-thread/wllama.worker.mjs',
+  },
+};
+const ENGINE_LABELS = { webgpu: 'WebGPU', multithread: 'Multi-Thread CPU', singlethread: 'Single-Thread CPU' };
+const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024 - (64 * 1024 * 1024); // ~1.94 GiB single-file limit
+const SPLIT_TARGET_BYTES = 1_700_000_000; // shard target size (safely under the limit)
+
+// escaped on purpose so nothing between here and your file can eat them
+const THINK_OPEN  = '\x3cthink\x3e';
+const THINK_CLOSE = '\x3c/think\x3e';
+
+/* ================= PRESETS & SETTINGS ================= */
+const PRESETS = {
+  small:  { ctx: 4096, predict: 1024 },
+  medium: { ctx: 6144, predict: 2048 },
+  big:    { ctx: 8192, predict: 4096 },
+};
+const KV_LEVELS = ['f16', 'q8_0', 'q4_0'];
+const settings = {
+  preset: 'medium',
+  engine: 'webgpu',
+  nCtx: PRESETS.medium.ctx,
+  nPredict: PRESETS.medium.predict,
+  temp: 0.6,
+  topP: 0.95,
+  topK: 40,
+  repPenalty: 1.1,
+  advanced: false,
+  thinking: true,
+  perf: { kv: 'q8_0', flash: true, batch: 2048, draftMax: 16, draftPMin: 0.9 },
+};
+
+/* ================= DOM ================= */
+const $ = id => document.getElementById(id);
+const hud = $('diagnostic-hud'), ggufInput = $('ggufInput'),
+      newChatBtn = $('newChatBtn'), benchBtn = $('benchBtn'),
+      progContainer = $('progress-container'), progBar = $('progress-bar'),
+      progText = $('progress-text'), chatContainer = $('chat-history'), userInput = $('userInput'),
+      sendBtn = $('sendBtn'), modelStatus = $('modelStatus'), systemPromptEl = $('systemPrompt'),
+      thinkToggle = $('thinkToggle'),
+      draftInput = $('draftInput'), draftStatus = $('draftStatus'), draftRemove = $('draftRemove'),
+      draftSummary = $('draftSummary'),
+      draftMaxSlider = $('draftMaxSlider'), draftMaxVal = $('draftMaxVal'),
+      draftPSlider = $('draftPSlider'), draftPVal = $('draftPVal'),
+      settingsBtn = $('settingsBtn'), settingsDot = $('settingsDot'), settingsOverlay = $('settingsOverlay'),
+      settingsClose = $('settingsClose'), settingsDone = $('settingsDone'), advancedToggle = $('advancedToggle'),
+      advancedSection = $('advancedSection'), engineSelect = $('engineSelect'),
+      kvSlider = $('kvSlider'), kvLabel = $('kvLabel'), faCheck = $('faCheck'),
+      batchSlider = $('batchSlider'), batchVal = $('batchVal'),
+      ctxSlider = $('ctxSlider'), ctxValue = $('ctxValue'),
+      predictSlider = $('predictSlider'), predictValue = $('predictValue'),
+      tempSlider = $('tempSlider'), tempValue = $('tempValue'), tempRow = $('tempRow'),
+      topPSlider = $('topPSlider'), topPValue = $('topPValue'),
+      topKSlider = $('topKSlider'), topKValue = $('topKValue'),
+      penaltySlider = $('penaltySlider'), penaltyValue = $('penaltyValue'),
+      reloadHint = $('reloadHint'), reloadHintText = $('reloadHintText'), reloadModelBtn = $('reloadModelBtn'),
+      splitOverlay = $('splitOverlay'), splitClose = $('splitClose'), splitMsg = $('splitMsg'),
+      splitPlan = $('splitPlan'), splitWarn = $('splitWarn'), splitProgressSection = $('splitProgressSection'),
+      splitBar = $('splitBar'), splitStatus = $('splitStatus'),
+      splitCancelBtn = $('splitCancelBtn'), splitGoBtn = $('splitGoBtn'), splitOkBtn = $('splitOkBtn');
+const presetBtns = document.querySelectorAll('.preset-btn');
+
+/* ================= STATE ================= */
+let wllama = null;
+let loadedFiles = null;
+let modelInfo = null;
+let history = [];
+let isGenerating = false;
+let isLoading = false;
+let stopRequested = false;
+let abortCtrl = null;
+let lastEngineActivity = Date.now();
+let draftFile = null;      // 🎯 speculative decoding drafter (File)
+let draftArch = null;      // its general.architecture, best-effort
+let mmprojFile = null;     // 👁 vision projector (File), enables image input
+let mmprojArch = null;
+let pendingAttachments = []; // staged in the tray, sent with the next message
+const mmprojInput = $('mmprojInput'), mmprojStatus = $('mmprojStatus'), mmprojRemove = $('mmprojRemove'),
+      attachBtn = $('attachBtn'), attachInput = $('attachInput'), attachTray = $('attachTray');
+const MMPROJ_HINT = "mmproj-*.gguf from your model's repo enables image input. You can also select it together with the model files.";
+const MAX_IMAGES = 4, MAX_TEXT_FILES = 5, MAX_IMG_SIDE = 1024, IMG_TOKENS = 560, MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024;
+const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|jsonl|xml|ya?ml|toml|ini|cfg|conf|log|html?|css|scss|[cm]?jsx?|tsx?|py|java|kt|c|h|cc|cpp|hpp|cs|go|rs|rb|php|sh|bash|sql|swift|lua|tex|srt|vtt)$/i;
+const webgpuAvailable = !!(navigator && navigator.gpu);
+
+/* ================= LOGGING ================= */
+let engineLoadError = null;
+function sysLog(msg, type = 'system') {
+  lastEngineActivity = Date.now();
+  if (/error loading model|failed to load model/i.test(String(msg)) && !engineLoadError) engineLoadError = String(msg);
+  const line = document.createElement('div');
+  line.className = `log-${type}`;
+  line.textContent = `[${new Date().toTimeString().slice(0, 8)}] ${msg}`;
+  hud.appendChild(line);
+  while (hud.childNodes.length > 300) hud.removeChild(hud.firstChild);
+  hud.scrollTop = hud.scrollHeight;
+}
+const fmtArg = a => {
+  if (typeof a === 'string') return a;
+  if (a instanceof Error) return a.message;
+  if (typeof Event !== 'undefined' && a instanceof Event) {
+    const t = a.target && (a.target.src || a.target.href || a.target.url || a.target.constructor?.name) || '';
+    return `[${a.type} event${a.message ? ': ' + a.message : ''}${a.filename ? ' @ ' + a.filename : ''}${t ? ' · target ' + t : ''}]`;
+  }
+  try { return JSON.stringify(a); } catch { return String(a); }
+};
+const origLog = console.log.bind(console), origWarn = console.warn.bind(console), origError = console.error.bind(console);
+console.log   = (...a) => { sysLog(a.map(fmtArg).join(' '), 'info');  origLog(...a); };
+console.warn  = (...a) => { sysLog(a.map(fmtArg).join(' '), 'warn');  origWarn(...a); };
+console.error = (...a) => { sysLog(a.map(fmtArg).join(' '), 'error'); origError(...a); };
+window.addEventListener('error', e => sysLog(`CRASH: ${e.message} @ line ${e.lineno}`, 'error'));
+window.addEventListener('unhandledrejection', e => sysLog(`PROMISE REJECTED: ${fmtArg(e.reason)}`, 'error'));
+
+/* ================= MARKDOWN (mini, escape-first) ================= */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function inlineFmt(s) {
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*(\S(?:[^*\n]*\S)?)\*(?=[\s).,!?;:]|$)/g, '$1<em>$2</em>');
+}
+function formatMarkdown(raw) {
+  let text = escapeHtml(raw);
+  const codeBlocks = [];
+  text = text.replace(/(^|\n)```[^\n]*\n?([\s\S]*?)(\n```|$)/g, (_, nl, code) => {
+    codeBlocks.push(code.replace(/\n+$/, ''));
+    return `${nl}\x00${codeBlocks.length - 1}\x00`;
+  });
+  text = text.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+  const renderBlock = i => `<pre><code>${codeBlocks[i]}</code></pre>`;
+  const lines = text.split('\n');
+  let html = '', para = [], listTag = null;
+  const flushPara = () => { if (para.length) { html += `<p>${para.join('<br>')}</p>`; para = []; } };
+  const closeList = () => { if (listTag) { html += `</${listTag}>`; listTag = null; } };
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) { flushPara(); closeList(); continue; }
+    const ph = t.match(/^\x00(\d+)\x00$/);
+    if (ph) { flushPara(); closeList(); html += renderBlock(+ph[1]); continue; }
+    const h = t.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { flushPara(); closeList(); const l = h[1].length + 2; html += `<h${l}>${inlineFmt(h[2])}</h${l}>`; continue; }
+    const ul = t.match(/^[-*+]\s+(.*)$/);
+    if (ul) { flushPara(); if (listTag !== 'ul') { closeList(); html += '<ul>'; listTag = 'ul'; } html += `<li>${inlineFmt(ul[1])}</li>`; continue; }
+    const ol = t.match(/^(\d+)[.)]\s+(.*)$/);
+    if (ol) { flushPara(); if (listTag !== 'ol') { closeList(); html += '<ol>'; listTag = 'ol'; } html += `<li>${inlineFmt(ol[2])}</li>`; continue; }
+    const bq = t.match(/^&gt;\s?(.*)$/);
+    if (bq) { flushPara(); closeList(); html += `<blockquote>${inlineFmt(bq[1])}</blockquote>`; continue; }
+    closeList();
+    para.push(inlineFmt(t));
+  }
+  flushPara(); closeList();
+  return html.replace(/\x00(\d+)\x00/g, (_, i) => renderBlock(+i));
+}
+
+/* ================= THINK-TAG PARSER ================= */
+// Thinking markers by model family: Qwen/DeepSeek style, and Gemma 4's channel format.
+const THINK_PAIRS = [
+  [THINK_OPEN, THINK_CLOSE],
+  ['<|channel>thought', '<channel|>'],
+  ['<|channel>thinking', '<channel|>'],
+];
+const STRAY_MARKERS = /<\|channel>|<channel\|>/g;
+function parseThinking(text) {
+  // earliest opening marker wins
+  let best = null;
+  for (const [open, close] of THINK_PAIRS) {
+    const i = text.indexOf(open);
+    if (i !== -1 && (!best || i < best.start)) best = { start: i, open, close };
+  }
+  if (!best) {
+    // hide a half-streamed opening marker (e.g. "<|chan") until it completes
+    let out = text;
+    for (const [open] of THINK_PAIRS) {
+      for (let n = Math.min(open.length - 1, text.length); n >= 2; n--) {
+        if (text.endsWith(open.slice(0, n))) { out = text.slice(0, text.length - n); break; }
+      }
+      if (out !== text) break;
+    }
+    return { think: '', response: out.replace(STRAY_MARKERS, '') };
+  }
+  const { start, open, close } = best;
+  const prefix = start > 0 ? text.slice(0, start) : '';
+  const end = text.indexOf(close, start + open.length);
+  if (end === -1) return { think: text.slice(start + open.length).trim(), response: prefix.replace(STRAY_MARKERS, '').trim() };
+  const tail = text.slice(end + close.length);
+  const response = (prefix && tail) ? `${prefix}\n\n${tail}` : (prefix || tail);
+  return { think: text.slice(start + open.length, end).trim(), response: response.replace(STRAY_MARKERS, '').trim() };
+}
+
+/* ================= UI HELPERS ================= */
+function appendMessage(role, text) {
+  const wrap = document.createElement('div');
+  wrap.className = `message ${role}`;
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'user' ? 'U' : '✦';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = role === 'user' ? formatMarkdown(text) : text;
+  wrap.append(avatar, bubble);
+  chatContainer.appendChild(wrap);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+  return { wrap, bubble };
+}
+function appendUserMessage(text, atts) {
+  const { bubble } = appendMessage('user', text);
+  if (atts && atts.length) {
+    const row = document.createElement('div');
+    row.className = 'msg-attachments';
+    for (const a of atts) {
+      const el = document.createElement('div');
+      el.className = 'msg-attach ' + a.kind;
+      el.title = a.name;
+      if (a.kind === 'image' && a.thumb) { const img = new Image(); img.src = a.thumb; img.alt = a.name; el.appendChild(img); }
+      else el.textContent = '📄 ' + a.name;
+      row.appendChild(el);
+    }
+    bubble.prepend(row);
+  }
+}
+function showNote(html) {
+  chatContainer.innerHTML = '';
+  const note = document.createElement('div');
+  note.className = 'system-note';
+  note.innerHTML = html;
+  chatContainer.appendChild(note);
+}
+function showProgress(label, indeterminate = false) {
+  progContainer.style.display = 'block';
+  progBar.style.width = '0%';
+  progBar.style.background = '';
+  progBar.classList.toggle('indeterminate', indeterminate);
+  progText.textContent = label;
+}
+function finishProgress(ok, label) {
+  progBar.classList.remove('indeterminate');
+  progBar.style.width = '100%';
+  progBar.style.background = ok ? 'var(--success)' : 'var(--danger)';
+  progText.textContent = label;
+  if (ok) setTimeout(() => { progContainer.style.display = 'none'; }, 2500);
+}
+
+const ICON_SEND = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+const ICON_STOP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
+function setSendMode(mode) {
+  if (mode === 'stop') {
+    sendBtn.classList.add('stopping');
+    sendBtn.innerHTML = ICON_STOP;
+    sendBtn.disabled = false;
+    sendBtn.title = 'Stop generation (Esc)';
+  } else {
+    sendBtn.classList.remove('stopping');
+    sendBtn.innerHTML = ICON_SEND;
+    sendBtn.disabled = !wllama || userInput.disabled || (userInput.value.trim().length === 0 && pendingAttachments.length === 0);
+    sendBtn.title = 'Send';
+  }
+}
+function syncThinkToggle() {
+  thinkToggle.classList.toggle('on', settings.thinking);
+  thinkToggle.classList.toggle('off', !settings.thinking);
+  thinkToggle.setAttribute('aria-pressed', String(settings.thinking));
+  thinkToggle.textContent = `🧠 Thinking: ${settings.thinking ? 'ON' : 'OFF'}`;
+  thinkToggle.title = settings.thinking
+    ? 'Thinking ON — model reasons before answering (slower, often better answers). Click to turn off.'
+    : 'Thinking OFF — direct answers, much faster. Click to turn on.';
+}
+function updateDraftUI() {
+  if (!draftFile) {
+    draftStatus.textContent = 'Small same-family model → up to ~2–3× faster via speculative decoding.';
+    draftRemove.hidden = true;
+  } else {
+    const mb = (draftFile.size / 1048576).toFixed(0);
+    const active = !!(wllama && modelInfo && modelInfo.draftName === draftFile.name);
+    draftStatus.textContent = `${draftFile.name} · ${mb} MB${draftArch ? ' · ' + draftArch : ''} — ${active ? 'ACTIVE' : 'applies on restart'}`;
+    draftRemove.hidden = false;
+  }
+  draftSummary.innerHTML = draftFile
+    ? `Selected: <strong>${escapeHtml(draftFile.name)}</strong> (${(draftFile.size / 1048576).toFixed(0)} MB${draftArch ? ' · ' + escapeHtml(draftArch) : ''}). Applies on restart.`
+    : 'No draft model selected. Pick one with 🎯 Draft model in the sidebar.';
+  updateMmprojUI();
+}
+
+/* ================= SETTINGS LOGIC ================= */
+function effectiveEngine() {
+  if (settings.engine === 'webgpu' && webgpuAvailable) return 'webgpu';
+  if (settings.engine === 'multithread' && window.crossOriginIsolated) return 'multithread';
+  return 'singlethread';
+}
+function refreshEngineAvailability() {
+  const gpuOpt = engineSelect.querySelector('option[value="webgpu"]');
+  const mtOpt  = engineSelect.querySelector('option[value="multithread"]');
+  if (gpuOpt) {
+    gpuOpt.disabled = !webgpuAvailable;
+    gpuOpt.textContent = webgpuAvailable ? '🚀 WebGPU (no COOP/COEP needed)' : '🚀 WebGPU (unavailable in this browser)';
+  }
+  if (mtOpt) {
+    mtOpt.disabled = !window.crossOriginIsolated;
+    mtOpt.textContent = window.crossOriginIsolated ? '🧵 Multi-Thread CPU' : '🧵 Multi-Thread (needs COOP/COEP)';
+  }
+  const eff = effectiveEngine();
+  if (eff !== settings.engine) {
+    sysLog(`Engine "${settings.engine}" unavailable here — falling back to ${ENGINE_LABELS[eff]}.`, 'warn');
+    settings.engine = eff;
+  }
+  engineSelect.value = settings.engine;
+}
+function refreshPresetHighlight() {
+  const match = Object.keys(PRESETS).find(k => PRESETS[k].ctx === settings.nCtx && PRESETS[k].predict === settings.nPredict);
+  settings.preset = match || 'custom';
+  presetBtns.forEach(b => b.classList.toggle('active', b.dataset.preset === settings.preset));
+}
+function desiredPerf() {
+  return {
+    flash: settings.perf.flash,
+    kvK: settings.perf.kv,
+    kvV: settings.perf.flash ? settings.perf.kv : 'f16',
+    batch: settings.perf.batch,
+  };
+}
+function updateReloadHint() {
+  let changed = false;
+  const parts = [];
+  if (wllama && loadedFiles && modelInfo) {
+    if (settings.nCtx !== modelInfo.ctx) { changed = true; parts.push(`ctx ${modelInfo.ctx}→${settings.nCtx}`); }
+    if (effectiveEngine() !== modelInfo.engine) { changed = true; parts.push(`engine ${ENGINE_LABELS[modelInfo.engine]}→${ENGINE_LABELS[effectiveEngine()]}`); }
+    const wantDraft = draftFile ? draftFile.name : null;
+    if (wantDraft !== modelInfo.draftName) {
+      changed = true;
+      parts.push(wantDraft ? 'attach draft' : 'remove draft');
+    } else if (modelInfo.draftName) {
+      if (modelInfo.draftParams?.max !== settings.perf.draftMax || modelInfo.draftParams?.pMin !== settings.perf.draftPMin) {
+        changed = true; parts.push('draft tuning');
+      }
+    }
+    const wantMm = mmprojFile ? mmprojFile.name : null;
+    if (wantMm !== (modelInfo.visionName || null)) { changed = true; parts.push(wantMm ? 'attach vision projector' : 'remove vision projector'); }
+    if (modelInfo.engineVersion?.startsWith('3') && modelInfo.perf && !modelInfo.perf.overridden) {
+      const w = desiredPerf(), h = modelInfo.perf;
+      if (w.flash !== h.flash || w.kvK !== h.kvK || w.kvV !== h.kvV || w.batch !== h.batch) { changed = true; parts.push('token speed'); }
+    }
+  }
+  reloadHint.hidden = !changed;
+  settingsDot.classList.toggle('show', changed);
+  if (changed) reloadHintText.textContent = `⚠ Restart to apply: ${parts.join(' · ')}`;
+}
+function syncSettingsUI() {
+  ctxSlider.value = settings.nCtx;             ctxValue.textContent = settings.nCtx;
+  predictSlider.value = settings.nPredict;     predictValue.textContent = settings.nPredict;
+  tempSlider.value = settings.temp;            tempValue.textContent = settings.temp.toFixed(2);
+  topPSlider.value = settings.topP;            topPValue.textContent = settings.topP.toFixed(2);
+  topKSlider.value = settings.topK;            topKValue.textContent = settings.topK;
+  penaltySlider.value = settings.repPenalty;   penaltyValue.textContent = settings.repPenalty.toFixed(2);
+  kvSlider.value = Math.max(0, KV_LEVELS.indexOf(settings.perf.kv));
+  kvLabel.textContent = settings.perf.kv;
+  faCheck.checked = settings.perf.flash;
+  batchSlider.value = settings.perf.batch;     batchVal.textContent = settings.perf.batch;
+  draftMaxSlider.value = settings.perf.draftMax; draftMaxVal.textContent = settings.perf.draftMax;
+  draftPSlider.value = settings.perf.draftPMin;  draftPVal.textContent = settings.perf.draftPMin.toFixed(2);
+  refreshEngineAvailability();
+  advancedToggle.checked = settings.advanced;
+  advancedSection.hidden = !settings.advanced;
+  tempSlider.disabled = !settings.advanced;
+  tempRow.classList.toggle('locked', !settings.advanced);
+  refreshPresetHighlight();
+  updateDraftUI();
+  updateReloadHint();
+}
+function openSettings()  { syncSettingsUI(); settingsOverlay.hidden = false; }
+function closeSettings() { settingsOverlay.hidden = true; }
+
+presetBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    settings.nCtx = p.ctx;
+    settings.nPredict = p.predict;
+    sysLog(`Preset "${btn.dataset.preset}" → ${p.ctx} ctx · ${p.predict} new tokens (temperature untouched).`, 'info');
+    syncSettingsUI();
+  });
+});
+advancedToggle.addEventListener('change', () => {
+  settings.advanced = advancedToggle.checked;
+  sysLog(`Advanced mode ${settings.advanced ? 'ON — manual controls unlocked' : 'OFF'}.`, 'info');
+  syncSettingsUI();
+});
+ctxSlider.addEventListener('input', () => {
+  settings.nCtx = +ctxSlider.value;
+  ctxValue.textContent = settings.nCtx;
+  refreshPresetHighlight(); updateReloadHint();
+});
+predictSlider.addEventListener('input', () => {
+  settings.nPredict = +predictSlider.value;
+  predictValue.textContent = settings.nPredict;
+  refreshPresetHighlight();
+});
+tempSlider.addEventListener('input', () => {
+  settings.temp = +tempSlider.value;
+  tempValue.textContent = settings.temp.toFixed(2);
+});
+topPSlider.addEventListener('input', () => { settings.topP = +topPSlider.value; topPValue.textContent = settings.topP.toFixed(2); });
+topKSlider.addEventListener('input', () => { settings.topK = +topKSlider.value; topKValue.textContent = settings.topK; });
+penaltySlider.addEventListener('input', () => { settings.repPenalty = +penaltySlider.value; penaltyValue.textContent = settings.repPenalty.toFixed(2); });
+engineSelect.addEventListener('change', () => { settings.engine = engineSelect.value; updateReloadHint(); });
+kvSlider.addEventListener('input', () => {
+  settings.perf.kv = KV_LEVELS[+kvSlider.value] || 'q8_0';
+  kvLabel.textContent = settings.perf.kv;
+  updateReloadHint();
+});
+faCheck.addEventListener('change', () => { settings.perf.flash = faCheck.checked; updateReloadHint(); });
+batchSlider.addEventListener('input', () => {
+  settings.perf.batch = +batchSlider.value;
+  batchVal.textContent = settings.perf.batch;
+  updateReloadHint();
+});
+draftMaxSlider.addEventListener('input', () => {
+  settings.perf.draftMax = +draftMaxSlider.value;
+  draftMaxVal.textContent = settings.perf.draftMax;
+  updateReloadHint();
+});
+draftPSlider.addEventListener('input', () => {
+  settings.perf.draftPMin = +draftPSlider.value;
+  draftPVal.textContent = settings.perf.draftPMin.toFixed(2);
+  updateReloadHint();
+});
+
+settingsBtn.addEventListener('click', openSettings);
+settingsClose.addEventListener('click', closeSettings);
+settingsDone.addEventListener('click', closeSettings);
+settingsOverlay.addEventListener('click', e => { if (e.target === settingsOverlay) closeSettings(); });
+reloadModelBtn.addEventListener('click', () => {
+  if (!loadedFiles) return;
+  closeSettings();
+  loadModelFiles(loadedFiles);
+});
+thinkToggle.addEventListener('click', () => {
+  settings.thinking = !settings.thinking;
+  sysLog(`Thinking mode ${settings.thinking ? 'ON — model will reason first (slower, often better answers)' : 'OFF — direct answers, much faster'}.`, settings.thinking ? 'info' : 'warn');
+  syncThinkToggle();
+});
+
+/* ================= 🎯 DRAFT MODEL HANDLING ================= */
+draftInput.addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  if (!/\.(gguf|bin)$/i.test(f.name)) { sysLog(`🎯 "${f.name}" is not a .gguf file.`, 'warn'); return; }
+  if (f.size > MAX_FILE_BYTES) { sysLog('🎯 Draft model over the ~2 GB single-file limit — and a drafter that big defeats the purpose anyway.', 'warn'); return; }
+  draftArch = null;
+  try { draftArch = (await parseGgufStructure(f)).arch; } catch {}
+  draftFile = f;
+  sysLog(`🎯 Draft model: ${f.name} (${(f.size / 1048576).toFixed(0)} MB${draftArch ? ' · ' + draftArch : ''}) — applies on engine restart.`, 'info');
+  if (f.size / 1048576 > 1200) sysLog('🎯 Warning: a draft this large usually erases the speedup — prefer ≤ 1 GB (Qwen3-0.6B Q4_K_M ≈ 400 MB).', 'warn');
+  updateDraftUI();
+  updateReloadHint();
+});
+draftRemove.addEventListener('click', () => {
+  draftFile = null; draftArch = null;
+  sysLog('🎯 Draft model removed — applies on engine restart.', 'info');
+  updateDraftUI();
+  updateReloadHint();
+});
+
+/* ================= GGUF PARSER (splitter + shard verification + arch) ================= */
+const NEED_MORE = new Error('need-more-bytes');
+NEED_MORE.needMore = true;
+
+function parseGgufFromBuffer(ab, fileSize) {
+  const dv = new DataView(ab), u8 = new Uint8Array(ab);
+  const dec = new TextDecoder();
+  let o = 0;
+  const need = n => { if (o + n > ab.byteLength) throw NEED_MORE; };
+
+  if (ab.byteLength < 12) throw NEED_MORE;
+  if (u8[0] !== 0x47 || u8[1] !== 0x47 || u8[2] !== 0x55 || u8[3] !== 0x46)
+    throw new Error('not a GGUF file (bad magic)');
+  o = 4;
+  const version = dv.getUint32(o, true); o += 4;
+  if (version !== 2 && version !== 3) throw new Error(`unsupported GGUF version ${version}`);
+  const isV3 = version >= 3;
+  need(16);
+  const tensorCount = Number(dv.getBigUint64(o, true)); o += 8;
+  const kvCount = Number(dv.getBigUint64(o, true)); o += 8;
+  if (tensorCount === 0 || tensorCount > 65536) throw new Error(`implausible tensor count ${tensorCount}`);
+  if (kvCount > 4096) throw new Error(`implausible metadata count ${kvCount}`);
+
+  const kvStart = o;
+  let alignment = 32;
+  let arch = null;
+  const splitMeta = { no: null, count: null, tensors: null, tensorsCount: null };
+
+  const readLen = () => {
+    need(isV3 ? 8 : 4);
+    const v = isV3 ? Number(dv.getBigUint64(o, true)) : dv.getUint32(o, true);
+    o += isV3 ? 8 : 4;
+    return v;
+  };
+  const readStrRaw = () => {
+    const len = readLen();
+    if (len > 65536) throw new Error('metadata string too long (corrupt?)');
+    need(len);
+    const s = o; o += len;
+    return { start: s, len };
+  };
+  const POD_SIZE = { 0:1, 1:1, 2:2, 3:2, 4:4, 5:4, 6:4, 7:1, 10:8, 11:8, 12:8 };
+  const skipValue = type => {
+    if (POD_SIZE[type] != null) { need(POD_SIZE[type]); o += POD_SIZE[type]; return; }
+    if (type === 8) { readStrRaw(); return; }
+    if (type === 9) {
+      need(4); const et = dv.getUint32(o, true); o += 4;
+      const n = readLen();
+      if (et === 8) { for (let i = 0; i < n; i++) readStrRaw(); }
+      else if (et === 9) { for (let i = 0; i < n; i++) skipValue(9); }
+      else {
+        if (POD_SIZE[et] == null) throw new Error(`unknown array element type ${et}`);
+        need(n * POD_SIZE[et]); o += n * POD_SIZE[et];
+      }
+      return;
+    }
+    throw new Error(`unknown GGUF value type ${type}`);
+  };
+
+  for (let i = 0; i < kvCount; i++) {
+    const ks = readStrRaw();
+    need(4);
+    const vt = dv.getUint32(o, true); o += 4;
+    const key = dec.decode(u8.subarray(ks.start, ks.start + ks.len));
+    if (key === 'general.alignment') {
+      if (vt !== 4) throw new Error('general.alignment has unexpected type');
+      need(4); alignment = dv.getUint32(o, true); o += 4;
+      if (alignment < 1 || alignment > (1 << 24)) throw new Error(`implausible alignment ${alignment}`);
+    } else if (key === 'general.architecture') {
+      if (vt === 8) { const s = readStrRaw(); arch = dec.decode(u8.subarray(s.start, s.start + s.len)); }
+      else skipValue(vt);
+    } else if (key === 'split.no') {
+      if (vt !== 2) throw new Error('split.no has unexpected type');
+      need(2); splitMeta.no = dv.getUint16(o, true); o += 2;
+    } else if (key === 'split.count') {
+      if (vt !== 2) throw new Error('split.count has unexpected type');
+      need(2); splitMeta.count = dv.getUint16(o, true); o += 2;
+    } else if (key === 'split.tensors.count') {
+      if (vt !== 5 && vt !== 4) throw new Error('split.tensors.count has unexpected type');
+      need(4); splitMeta.tensorsCount = dv.getInt32(o, true); o += 4;
+    } else if (key === 'split.tensors') {
+      if (vt !== 7) throw new Error('split.tensors has unexpected type');
+      need(1); splitMeta.tensors = u8[o] !== 0; o += 1;
+    } else {
+      skipValue(vt);
+    }
+  }
+  const kvEnd = o;
+
+  const tensors = [];
+  for (let i = 0; i < tensorCount; i++) {
+    const ns = readStrRaw();
+    const name = dec.decode(u8.subarray(ns.start, ns.start + ns.len));
+    need(4); const nDims = dv.getUint32(o, true); o += 4;
+    if (nDims < 1 || nDims > 8) throw new Error(`tensor "${name}" has bad dim count`);
+    need(nDims * 8);
+    const dims = [];
+    for (let d = 0; d < nDims; d++) { dims.push(Number(dv.getBigUint64(o, true))); o += 8; }
+    need(12);
+    const type = dv.getUint32(o, true); o += 4;
+    const off = Number(dv.getBigUint64(o, true)); o += 8;
+    tensors.push({ name, nDims, dims, type, offset: off, size: 0 });
+  }
+
+  const dataStart = (o + (alignment - (o % alignment)) % alignment);
+  const order = tensors.map((_, i) => i).sort((a, b) => tensors[a].offset - tensors[b].offset);
+  for (let k = 0; k < order.length; k++) {
+    const t = tensors[order[k]];
+    const nextOff = (k + 1 < order.length) ? tensors[order[k + 1]].offset : (fileSize - dataStart);
+    t.size = nextOff - t.offset;
+    if (t.size < 0 || dataStart + t.offset + t.size > fileSize)
+      throw new Error(`tensor "${t.name}" extends past end of file (corrupt GGUF)`);
+  }
+  return { version, isV3, alignment, arch, kvStart, kvEnd, kvCount, splitMeta, tensors, dataStart, prefix: ab };
+}
+
+async function parseGgufStructure(file) {
+  if (file.size < 16) throw new Error('file too small to be a GGUF');
+  let cap = 1 << 20;
+  const hardCap = 192 << 20;
+  while (cap <= hardCap) {
+    let ab;
+    try { ab = await file.slice(0, Math.min(cap, file.size)).arrayBuffer(); }
+    catch (e) { throw new Error('could not read file: ' + (e?.message || e)); }
+    try { return parseGgufFromBuffer(ab, file.size); }
+    catch (e) {
+      if (e === NEED_MORE || e?.needMore) { cap *= 8; continue; }
+      throw e;
+    }
+  }
+  throw new Error('GGUF metadata too large to parse (over 192 MB) — unsupported');
+}
+
+/* ================= OVERSIZED-FILE SPLITTER ================= */
+let splitMode = 'idle';
+let splitAskResolve = null;
+
+function closeSplitPopup() {
+  if (splitMode === 'run') return;
+  const wasAsk = splitMode === 'ask';
+  splitMode = 'idle';
+  splitOverlay.hidden = true;
+  if (wasAsk && splitAskResolve) { const r = splitAskResolve; splitAskResolve = null; r({ go: false }); }
+}
+
+function planShards(struct) {
+  const groups = []; let cur = [], curBytes = 0;
+  for (const t of struct.tensors) {
+    if (curBytes && curBytes + t.size > SPLIT_TARGET_BYTES) { groups.push(cur); cur = []; curBytes = 0; }
+    cur.push(t); curBytes += t.size;
+  }
+  if (cur.length) groups.push(cur);
+  return groups;
+}
+
+function buildSplitKvs(isV3, shardIdx, totalShards, totalTensors) {
+  const enc = new TextEncoder();
+  const mk = (key, typeId, valBytes) => {
+    const kb = enc.encode(key);
+    const b = new Uint8Array((isV3 ? 8 : 4) + kb.length + 4 + valBytes.length);
+    const dv = new DataView(b.buffer);
+    let o = 0;
+    if (isV3) { dv.setBigUint64(0, BigInt(kb.length), true); o = 8; }
+    else { dv.setUint32(0, kb.length, true); o = 4; }
+    b.set(kb, o); o += kb.length;
+    dv.setUint32(o, typeId, true); o += 4;
+    b.set(valBytes, o);
+    return b;
+  };
+  const u16 = v => { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, v, true); return b; };
+  const i32 = v => { const b = new Uint8Array(4); new DataView(b.buffer).setInt32(0, v, true); return b; };
+  // same three keys llama.cpp's gguf-split writes (split.tensors.count is REQUIRED by the loader)
+  return [
+    mk('split.no', 2, u16(shardIdx)),
+    mk('split.count', 2, u16(totalShards)),
+    mk('split.tensors.count', 5, i32(totalTensors)),
+  ];
+}
+
+function buildShardHeadParts(struct, group, shardIdx, totalShards) {
+  const { isV3, alignment } = struct;
+  let running = 0;
+  for (const t of group) {
+    t._local = running;
+    t._pad = (alignment - (t.size % alignment)) % alignment;
+    running += t.size + t._pad;
+  }
+  const enc = new TextEncoder();
+  let infosLen = 0;
+  for (const t of group) infosLen += (isV3 ? 8 : 4) + enc.encode(t.name).length + 4 + 8 * t.nDims + 4 + 8;
+  const infos = new Uint8Array(infosLen);
+  const idv = new DataView(infos.buffer);
+  {
+    let o = 0;
+    for (const t of group) {
+      const nb = enc.encode(t.name);
+      if (isV3) { idv.setBigUint64(o, BigInt(nb.length), true); o += 8; }
+      else { idv.setUint32(o, nb.length, true); o += 4; }
+      infos.set(nb, o); o += nb.length;
+      idv.setUint32(o, t.nDims, true); o += 4;
+      for (const d of t.dims) { idv.setBigUint64(o, BigInt(d), true); o += 8; }
+      idv.setUint32(o, t.type, true); o += 4;
+      idv.setBigUint64(o, BigInt(t._local), true); o += 8;
+    }
+  }
+  const head = new Uint8Array(24);
+  const hdv = new DataView(head.buffer);
+  head[0] = 0x47; head[1] = 0x47; head[2] = 0x55; head[3] = 0x46;
+  hdv.setUint32(4, struct.version, true);
+  hdv.setBigUint64(8, BigInt(group.length), true);
+  hdv.setBigUint64(16, BigInt(struct.kvCount + 3), true);
+
+  const kvRaw = new Uint8Array(struct.prefix, struct.kvStart, struct.kvEnd - struct.kvStart);
+  const parts = [head, kvRaw, ...buildSplitKvs(isV3, shardIdx, totalShards, struct.tensors.length), infos];
+  const total = parts.reduce((s, p) => s + p.length, 0);
+  const pad = (alignment - (total % alignment)) % alignment;
+  if (pad) parts.push(new Uint8Array(pad));
+  return parts;
+}
+
+function setSplitProgress(shardIdx, total, done, totalBytes) {
+  const pct = Math.min(100, Math.round((done / totalBytes) * 100));
+  splitBar.style.width = pct + '%';
+  splitStatus.textContent = `Shard ${shardIdx + 1}/${total} · ${pct}% · ${(done / 1e9).toFixed(2)} / ${(totalBytes / 1e9).toFixed(2)} GB`;
+}
+function splitRunDone(names, cancelled) {
+  splitMode = 'done';
+  if (!cancelled) splitBar.style.width = '100%';
+  splitStatus.textContent = cancelled
+    ? 'Cancelled — partially written files may remain in the folder.'
+    : `✓ ${names.length} shards written. Now select ALL of them together in the loader.`;
+  splitOkBtn.hidden = false; splitGoBtn.hidden = true; splitCancelBtn.hidden = true;
+}
+
+function splitPopupAsk(file, struct, groups) {
+  return new Promise(resolve => {
+    splitAskResolve = resolve;
+    splitMode = 'ask';
+    const baseName = file.name.replace(/\.gguf$/i, '');
+    const names = groups.map((_, i) => `${baseName}-${String(i + 1).padStart(5, '0')}-of-${String(groups.length).padStart(5, '0')}.gguf`);
+    splitMsg.innerHTML =
+      `The file given is <strong>too large</strong> to load directly — <strong>${escapeHtml(file.name)}</strong> is ` +
+      `${(file.size / 1e9).toFixed(2)} GB (single-file limit ≈ ${(MAX_FILE_BYTES / 1e9).toFixed(2)} GB).<br>` +
+      `Would you like to split it into your Downloads folder?`;
+    const shown = names.length > 4 ? names.slice(0, 3).concat(`… (+${names.length - 3} more)`) : names;
+    splitPlan.textContent = `${groups.length} shards · ≤ ${(SPLIT_TARGET_BYTES / 1e9).toFixed(1)} GB each · ${struct.tensors.length} tensors:\n${shown.join('\n')}`;
+    const needGB = (file.size / 1e9) * 1.15 + 0.6;
+    if (needGB > 3.6) {
+      splitWarn.hidden = false;
+      splitWarn.textContent = `⚠️ Once loaded, this model needs roughly ${needGB.toFixed(1)} GB of RAM. On an 8 GB Chromebook that's borderline — close other tabs, use the Small preset, and it may still fail to load.`;
+    } else splitWarn.hidden = true;
+    const useDir = !!(window.showDirectoryPicker && window.isSecureContext);
+    splitGoBtn.textContent = useDir ? '✂️ Split into Downloads' : '✂️ Split (download shards)';
+    splitGoBtn.hidden = false; splitCancelBtn.hidden = false; splitOkBtn.hidden = true;
+    splitProgressSection.hidden = true;
+    splitBar.style.width = '0%';
+    splitStatus.textContent = '';
+    splitOverlay.hidden = false;
+  });
+}
+
+splitGoBtn.addEventListener('click', () => {
+  if (splitMode !== 'ask' || !splitAskResolve) return;
+  const dirPromise = (window.showDirectoryPicker && window.isSecureContext)
+    ? showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' })
+        .catch(e => (e?.name === 'AbortError' ? 'cancelled' : null))
+    : Promise.resolve(null);
+  splitMode = 'run';
+  splitGoBtn.hidden = true; splitCancelBtn.hidden = true;
+  splitProgressSection.hidden = false;
+  splitStatus.textContent = 'Preparing…';
+  const r = splitAskResolve; splitAskResolve = null;
+  r({ go: true, dirPromise });
+});
+splitCancelBtn.addEventListener('click', closeSplitPopup);
+splitClose.addEventListener('click', closeSplitPopup);
+splitOkBtn.addEventListener('click', () => { splitMode = 'idle'; splitOverlay.hidden = true; });
+splitOverlay.addEventListener('click', e => { if (e.target === splitOverlay) closeSplitPopup(); });
+
+async function performSplit(file, struct, groups, dirHandlePromise) {
+  const baseName = file.name.replace(/\.gguf$/i, '').replace(/-\d{5}-of-\d{5}$/, '');
+  const total = groups.length;
+  const names = groups.map((_, i) => `${baseName}-${String(i + 1).padStart(5, '0')}-of-${String(total).padStart(5, '0')}.gguf`);
+  const zeros = new Uint8Array(struct.alignment);
+  const totalBytes = file.size;
+  let doneBytes = 0;
+
+  const dir = await dirHandlePromise;
+  if (dir === 'cancelled') {
+    sysLog('Split cancelled (folder picker closed).', 'warn');
+    splitRunDone(names, true);
+    return false;
+  }
+
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i];
+    const parts = buildShardHeadParts(struct, group, i, total);
+    let shardBytes = parts.reduce((s, p) => s + p.length, 0);
+
+    if (dir) {
+      const fh = await dir.getFileHandle(names[i], { create: true });
+      const w = await fh.createWritable();
+      for (const p of parts) await w.write(p);
+      for (const t of group) {
+        const abs = struct.dataStart + t.offset;
+        await w.write(file.slice(abs, abs + t.size));
+        if (t._pad) await w.write(zeros.subarray(0, t._pad));
+        shardBytes += t.size + t._pad; doneBytes += t.size + t._pad;
+        setSplitProgress(i, total, doneBytes, totalBytes);
+      }
+      await w.close();
+      try {
+        const wf = await fh.getFile();
+        const s2 = await parseGgufStructure(wf);
+        if (s2.splitMeta.no !== i || s2.splitMeta.count !== total || s2.tensors.length !== group.length || s2.splitMeta.tensorsCount !== struct.tensors.length)
+          throw new Error('split metadata mismatch');
+        sysLog(`✂️ ${names[i]} — ${(shardBytes / 1e9).toFixed(2)} GB · ${group.length} tensors · header verified ✓`, 'success');
+      } catch (e) {
+        sysLog(`✂️ ${names[i]} written, but header re-check failed: ${e?.message || e}`, 'warn');
+      }
+    } else {
+      const blobParts = [...parts];
+      for (const t of group) {
+        const abs = struct.dataStart + t.offset;
+        blobParts.push(file.slice(abs, abs + t.size));
+        if (t._pad) blobParts.push(zeros.subarray(0, t._pad));
+        shardBytes += t.size + t._pad; doneBytes += t.size + t._pad;
+        setSplitProgress(i, total, doneBytes, totalBytes);
+      }
+      const url = URL.createObjectURL(new Blob(blobParts));
+      const a = document.createElement('a');
+      a.href = url; a.download = names[i];
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+      await new Promise(r => setTimeout(r, 1400));
+      sysLog(`✂️ ${names[i]} — download started (${(shardBytes / 1e9).toFixed(2)} GB · ${group.length} tensors)`, 'success');
+    }
+  }
+  sysLog(`✂️ split complete: ${total} shards. Select ALL of them together in the loader.`, 'success');
+  splitRunDone(names, false);
+  return true;
+}
+
+async function offerAndSplit(file) {
+  let struct;
+  try { struct = await parseGgufStructure(file); }
+  catch (e) { sysLog(`✂️ cannot split "${file.name}": ${e?.message || e}`, 'error'); return false; }
+  if (struct.splitMeta.no != null || struct.splitMeta.count != null || struct.splitMeta.tensors != null || struct.splitMeta.tensorsCount != null) {
+    sysLog(`"${file.name}" is already a split shard — select the full set instead of splitting it again.`, 'warn');
+    return false;
+  }
+  const bigTensor = struct.tensors.find(t => t.size > MAX_FILE_BYTES);
+  if (bigTensor) {
+    sysLog(`✂️ cannot split "${file.name}": tensor "${bigTensor.name}" alone is ${(bigTensor.size / 1e9).toFixed(2)} GB — over the per-shard limit.`, 'error');
+    return false;
+  }
+  const groups = planShards(struct);
+  if (groups.length < 2) { sysLog(`"${file.name}" is under the shard target — no split needed.`, 'info'); return false; }
+
+  const answer = await splitPopupAsk(file, struct, groups);
+  if (!answer || !answer.go) {
+    sysLog(`Split declined for "${file.name}" — it exceeds the single-file limit, so it cannot be loaded as-is.`, 'warn');
+    return false;
+  }
+  await performSplit(file, struct, groups, answer.dirPromise);
+  return true;
+}
+
+/* ================= SHARD SET VERIFICATION ================= */
+async function verifyShardSet(files) {
+  if (files.length === 1) {
+    try {
+      const s = await parseGgufStructure(files[0]);
+      if (s.splitMeta.count > 1) {
+        sysLog(`"${files[0].name}" is shard ${(s.splitMeta.no ?? 0) + 1} of ${s.splitMeta.count} — select ALL shards together.`, 'error');
+        return false;
+      }
+    } catch {}
+    return true;
+  }
+  const names = new Set();
+  let expectedCount = null;
+  for (const f of files) {
+    let s;
+    try { s = await parseGgufStructure(f); }
+    catch (e) { sysLog(`shard check: could not parse "${f.name}" (${e?.message || e}) — letting the engine decide.`, 'warn'); return true; }
+    if (s.splitMeta.count == null) {
+      sysLog(`shard check: "${f.name}" has no split metadata — these don't look like a matching shard set.`, 'warn');
+      return true;
+    }
+    if (expectedCount == null) expectedCount = s.splitMeta.count;
+    else if (expectedCount !== s.splitMeta.count) {
+      sysLog(`shard check: split.count mismatch in "${f.name}" (${s.splitMeta.count} ≠ ${expectedCount}) — wrong set.`, 'error');
+      return false;
+    }
+    for (const t of s.tensors) {
+      if (names.has(t.name)) {
+        sysLog(`shard check: tensor "${t.name}" appears in more than one file — invalid set.`, 'error');
+        return false;
+      }
+      names.add(t.name);
+    }
+  }
+  if (expectedCount !== files.length) {
+    sysLog(`shard check: expected ${expectedCount} shards, got ${files.length} — select the complete set.`, 'error');
+    return false;
+  }
+  sysLog(`shard check ✓: ${files.length} shards · ${names.size} tensors total · no duplicates.`, 'success');
+  return true;
+}
+
+/* ================= LEGACY SHARD REPAIR =================
+   Shards written by the old splitter lack `split.tensors.count`, which llama.cpp
+   refuses to load without. Rebuild just the header in memory and stream the tensor
+   data from the original file (lazy Blob.slice — nothing is copied or re-downloaded). */
+async function repairLegacyShards(files) {
+  if (files.length < 2) return files;
+  const structs = [];
+  try { for (const f of files) structs.push(await parseGgufStructure(f)); }
+  catch (e) { sysLog(`🩹 shard header check failed (${e?.message || e}) — loading files as-is.`, 'warn'); return files; }
+  if (!structs.every(s => s.splitMeta.count > 1 && s.splitMeta.tensorsCount == null)) return files;
+  const total = structs.reduce((n, s) => n + s.tensors.length, 0);
+  sysLog(`🩹 Shards lack split.tensors.count (made by the old splitter) — patching headers in memory (${total} tensors total).`, 'warn');
+  const enc = new TextEncoder();
+  return files.map((f, idx) => {
+    const st = structs[idx];
+    const { isV3, alignment } = st;
+    const extra = buildSplitKvs(isV3, 0, 1, total)[2];           // only the tensors.count KV
+    let infosLen = 0;
+    for (const t of st.tensors) infosLen += (isV3 ? 8 : 4) + enc.encode(t.name).length + 4 + 8 * t.nDims + 4 + 8;
+    const infos = new Uint8Array(infosLen);
+    const idv = new DataView(infos.buffer);
+    let o = 0;
+    for (const t of st.tensors) {
+      const nb = enc.encode(t.name);
+      if (isV3) { idv.setBigUint64(o, BigInt(nb.length), true); o += 8; } else { idv.setUint32(o, nb.length, true); o += 4; }
+      infos.set(nb, o); o += nb.length;
+      idv.setUint32(o, t.nDims, true); o += 4;
+      for (const d of t.dims) { idv.setBigUint64(o, BigInt(d), true); o += 8; }
+      idv.setUint32(o, t.type, true); o += 4;
+      idv.setBigUint64(o, BigInt(t.offset), true); o += 8;
+    }
+    const head = new Uint8Array(24);
+    const hdv = new DataView(head.buffer);
+    head.set([0x47, 0x47, 0x55, 0x46], 0);
+    hdv.setUint32(4, st.version, true);
+    hdv.setBigUint64(8, BigInt(st.tensors.length), true);
+    hdv.setBigUint64(16, BigInt(st.kvCount + 1), true);
+    const kvRaw = new Uint8Array(st.prefix, st.kvStart, st.kvEnd - st.kvStart);
+    const parts = [head, kvRaw, extra, infos];
+    const len = parts.reduce((n, p) => n + p.length, 0);
+    const pad = (alignment - (len % alignment)) % alignment;
+    if (pad) parts.push(new Uint8Array(pad));
+    return new Blob([...parts, f.slice(st.dataStart)]);
+  });
+}
+
+/* ================= URL PRECHECK ================= */
+const headCache = new Map();
+async function precheckUrl(url, expectWasm) {
+  if (headCache.has(url)) return headCache.get(url);
+  let reason = null;
+  try {
+    const r = await fetch(url, { method: 'HEAD' });
+    if (!r.ok) reason = `HTTP ${r.status}`;
+    else {
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      if (expectWasm && ct && !ct.includes('wasm')) reason = `wrong type (${ct})`;
+    }
+  } catch { reason = 'fetch error'; }
+  headCache.set(url, reason);
+  return reason;
+}
+async function precheckConfig(config) {
+  const urls = Object.values(config).filter(v => typeof v === 'string' && /^https?:/.test(v));
+  for (const u of urls) {
+    const bad = await precheckUrl(u, /\.wasm(\?|#|$)/.test(u));
+    if (bad) return `${bad} ← ${u}`;
+  }
+  return null;
+}
+
+/* ================= MODEL LOADING ================= */
+async function safeExit(instance, ms = 5000) {
+  if (!instance) return;
+  try {
+    await Promise.race([
+      instance.exit(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('exit timeout')), ms)),
+    ]);
+  } catch {}
+}
+
+function loadModelWithWatchdog(instance, files, loadOpts, silentMs) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const timer = setInterval(() => {
+      if (!done && Date.now() - lastEngineActivity > silentMs) {
+        done = true; clearInterval(timer);
+        reject(new Error(`stalled (no engine activity for ${Math.round(silentMs / 1000)}s)`));
+      }
+    }, 5000);
+    instance.loadModel(files, loadOpts).then(
+      v => { if (!done) { done = true; clearInterval(timer); resolve(v); } },
+      e => { if (!done) { done = true; clearInterval(timer); reject(e); } }
+    );
+  });
+}
+
+/* Load params — mode: 'fast' (user perf) | 'safe' (defaults) | 'plain' (v2).
+   draft: File → attaches spec_draft_* params (wllama v3 only, verified in
+   the 3.6.1 type defs; the blob is appended to loadModel's file list and
+   referenced by filename — best-effort wiring with automatic fallback). */
+function buildLoadParams(engine, nCtx, isV3, mode, draft) {
+  const threads = Math.min(navigator.hardwareConcurrency || 2, 8);
+  const p = { n_ctx: nCtx, jinja: true, n_batch: settings.perf.batch };
+  if (isV3) {
+    p.n_gpu_layers = engine === 'webgpu' ? 99 : 0;
+    p.n_threads = engine === 'singlethread' ? 1 : threads;
+    p.reasoning_format = 'none';
+    if (mode === 'fast') {
+      p.flash_attn = settings.perf.flash;
+      p.cache_type_k = settings.perf.kv;
+      p.cache_type_v = settings.perf.flash ? settings.perf.kv : 'f16';
+    }
+    if (draft) {
+      p.spec_draft_model = draft.name;
+      p.spec_draft_n_max = settings.perf.draftMax;
+      p.spec_draft_n_min = Math.max(1, Math.floor(settings.perf.draftMax / 3));
+      p.spec_draft_p_min = settings.perf.draftPMin;
+      p.spec_draft_ngl = engine === 'webgpu' ? 99 : 0;
+      p.spec_draft_threads = engine === 'singlethread' ? 1 : Math.min(navigator.hardwareConcurrency || 2, 4);
+    }
+  } else {
+    p.n_threads = engine === 'singlethread' ? 1 : threads;
+  }
+  return p;
+}
+
+async function loadModelFiles(inputFiles) {
+  if (isLoading)    { sysLog('A load is already in progress.', 'warn'); return; }
+  if (isGenerating) { sysLog('Stop generation before swapping models.', 'warn'); return; }
+  const raw = Array.from(inputFiles || []);
+  if (!raw.length) return;
+  const bad = raw.find(f => !/\.(gguf|bin)$/i.test(f.name));
+  if (bad) { sysLog(`"${bad.name}" is not a .gguf file.`, 'warn'); return; }
+  // a vision projector selected together with the model files is split off automatically
+  const mmPicked = raw.filter(f => /mmproj/i.test(f.name));
+  if (mmPicked.length) await setMmproj(mmPicked[0]);
+  const mainRaw = raw.filter(f => !/mmproj/i.test(f.name));
+  if (!mainRaw.length) {
+    sysLog('👁 Only a vision projector was selected — it will be attached on the next model load (♻ Restart, or load a model).', 'info');
+    return;
+  }
+  const files = mainRaw.sort((a, b) => a.name.localeCompare(b.name));
+
+  isLoading = true;
+  try {
+    const oversized = files.filter(f => f.size > MAX_FILE_BYTES);
+    const normal = files.filter(f => f.size <= MAX_FILE_BYTES);
+    if (oversized.length) {
+      for (const f of oversized) {
+        try { await offerAndSplit(f); }
+        catch (e) { sysLog(`✂️ split failed for "${f.name}": ${e?.message || e}`, 'error'); }
+      }
+      if (!normal.length) {
+        sysLog('Split flow finished — re-select ALL written shards together in the loader to run the model.', 'info');
+        return;
+      }
+    }
+    const loadFiles = normal;
+    if (loadFiles.length > 1) {
+      if (!(await verifyShardSet(loadFiles))) {
+        sysLog('Load aborted: the shard set is invalid or incomplete.', 'error');
+        return;
+      }
+    }
+    if (!loadFiles.length) return;
+
+    const nCtx = settings.nCtx;
+    const engine = effectiveEngine();
+    const displayName = loadFiles.length > 1 ? `${loadFiles[0].name} (+${loadFiles.length - 1} shards)` : loadFiles[0].name;
+    const totalMB = (loadFiles.reduce((s, f) => s + f.size, 0) / 1048576).toFixed(0);
+
+    sysLog('--- LOAD SEQUENCE START ---', 'info');
+    sysLog(`File: ${displayName} (${totalMB} MB total, ${loadFiles.length} file${loadFiles.length > 1 ? 's' : ''})`);
+    sysLog(`Engine: ${ENGINE_LABELS[engine]}${engine === 'webgpu' ? ' (GPU — no COOP/COEP needed)' : ''}`);
+    sysLog(`Context: ${nCtx} tokens · preset: ${settings.preset}`);
+
+    // best-effort architecture read (used for the draft-pairing check + info)
+    let mainArch = null;
+    try { mainArch = (await parseGgufStructure(loadFiles[0])).arch; } catch {}
+    if (mainArch) sysLog(`[model] architecture: ${mainArch}`, 'info');
+    const engineBase = await repairLegacyShards(loadFiles);
+
+    if (draftFile) {
+      if (PREFERRED_VERSION === '2.3.1') {
+        sysLog('🎯 Draft model needs wllama v3 — PREFERRED_VERSION is pinned to 2.3.1, draft will be ignored.', 'warn');
+      } else {
+        if (!draftArch) { try { draftArch = (await parseGgufStructure(draftFile)).arch; } catch {} }
+        if (mainArch && draftArch && mainArch !== draftArch) {
+          sysLog(`⚠️ Draft architecture "${draftArch}" ≠ main "${mainArch}" — speculative decoding needs a shared tokenizer. This pairing will likely fail or produce garbage.`, 'warn');
+        } else if (mainArch && draftArch) {
+          sysLog(`🎯 Draft pairing OK: ${draftArch} ⇄ ${draftArch === mainArch ? mainArch : mainArch}`, 'info');
+        }
+      }
+    }
+
+    const dp = desiredPerf();
+    sysLog(`⚡ Speed params: FA ${dp.flash ? 'on' : 'off'} · KV ${dp.kvK}/${dp.kvV} · batch ${dp.batch}${draftFile && PREFERRED_VERSION !== '2.3.1' ? ` · draft ${settings.perf.draftMax}-max @ p≥${settings.perf.draftPMin}` : ''}`, 'info');
+
+    // attempt order: (draft first if selected) → v3 fast → v3 safe → v2 legacy
+    const attempts = [];
+    const useMm = !!mmprojFile && PREFERRED_VERSION !== '2.3.1';
+    if (mmprojFile && !useMm) sysLog('👁 Vision projector needs wllama v3 — PREFERRED_VERSION is pinned to 2.3.1, projector will be ignored.', 'warn');
+    if (PREFERRED_VERSION !== '2.3.1') {
+      if (draftFile) attempts.push({ cand: ENGINE_V3, mode: 'fast', draft: true, mm: useMm });
+      attempts.push({ cand: ENGINE_V3, mode: 'fast', draft: false, mm: useMm });
+      attempts.push({ cand: ENGINE_V3, mode: 'safe', draft: false, mm: useMm });
+      if (useMm) attempts.push({ cand: ENGINE_V3, mode: 'fast', draft: false, mm: false });   // text-only fallback if the projector is rejected
+    }
+    attempts.push({ cand: ENGINE_V2, mode: 'plain', draft: false });
+
+    let loaded = false, lastErr = null, winner = null, winMode = null, winDraft = false, winMm = false;
+
+    for (let i = 0; i < attempts.length; i++) {
+      const a = attempts[i];
+      const cand = a.cand;
+      const isV3 = cand.version.startsWith('3');
+      await safeExit(wllama); wllama = null;
+
+      const modeLabel = [
+        modeLabelFor(a.mode, dp),
+        a.draft ? '+ 🎯 draft' : '',
+        a.mm ? '+ 👁 vision' : '',
+      ].filter(Boolean).join(' ');
+      sysLog(`[engine] ${i + 1}/${attempts.length} trying wllama v${cand.version} · ${modeLabel}`, 'info');
+
+      const bad = await precheckConfig(cand.config);
+      if (bad) { sysLog(`[engine] precheck skip v${cand.version}: ${bad}`, 'warn'); lastErr = new Error(bad); continue; }
+
+      try {
+        const mod = await import(cand.entry);
+        if (!mod?.Wllama) throw new Error('module exports no Wllama class');
+        showProgress(`Initializing engine v${cand.version}…`);
+
+        wllama = new mod.Wllama(cand.config);
+        if (isV3 && typeof wllama.isSupportWebGPU === 'function') {
+          sysLog(`[engine] v3 WebGPU support check: ${wllama.isSupportWebGPU() ? 'YES' : 'NO'}`);
+        }
+
+        const loadOpts = buildLoadParams(engine, nCtx, isV3, a.mode, a.draft ? draftFile : null);
+        const engineFiles = [...engineBase, ...(a.draft && draftFile ? [draftFile] : []), ...(a.mm && mmprojFile ? [mmprojFile] : [])];
+        if (!isV3) {
+          loadOpts.progressCallback = ({ loaded, total }) => {
+            const pct = total ? Math.round((loaded / total) * 100) : 100;
+            progBar.classList.remove('indeterminate');
+            progBar.style.width = `${pct}%`;
+            progText.textContent = `Loading weights: ${pct}%`;
+          };
+        } else {
+          showProgress(a.draft ? 'Loading model + draft into memory…' : 'Loading model into memory…', true);
+        }
+
+        lastEngineActivity = Date.now();
+        engineLoadError = null;
+        await loadModelWithWatchdog(wllama, engineFiles, loadOpts, 180000);
+        // wllama can resolve even when llama.cpp failed to load the model — verify for real
+        if (engineLoadError) throw new Error(engineLoadError);
+        if (typeof wllama.isModelLoaded === 'function' && !wllama.isModelLoaded()) throw new Error('engine reported no model loaded');
+        loaded = true; winner = cand; winMode = a.mode; winDraft = !!(a.draft && draftFile); winMm = !!(a.mm && mmprojFile);
+        break;
+      } catch (err) {
+        lastErr = err;
+        const msg = err?.message || String(err);
+        sysLog(`[engine] v${cand.version} (${modeLabel}) failed: ${msg}`, 'warn');
+        await safeExit(wllama); wllama = null;
+        if (a.draft) sysLog('🎯 Draft wiring rejected — retrying without draft model.', 'warn');
+        if (/gguf|tensor|weights|invalid magic/i.test(msg)) {
+          sysLog('The model file itself looks invalid/truncated — no engine can load it. Re-download and verify the size.', 'error');
+          break;
+        }
+      }
+    }
+
+    if (!loaded) throw lastErr || new Error('engine load failed');
+    sysLog(`[engine] WINNER: wllama v${winner.version} · ${winMode}${winDraft ? ' + 🎯 draft' : ''} · ${ENGINE_LABELS[engine]}.`, 'success');
+    if (winMm) sysLog(`👁 Vision projector attached (${mmprojFile.name}) — 📎 image input enabled.`, 'success');
+    else if (mmprojFile && winner.version.startsWith('3')) sysLog('👁 Vision projector NOT attached (engine rejected it) — running text-only. Paste the [engine] lines above to get this fixed.', 'warn');
+    if (winMode === 'safe') {
+      sysLog('⚡ Fast params were rejected by this backend — safe defaults used. Your Performance settings will retry on next restart.', 'warn');
+    }
+    if (winDraft) {
+      sysLog('🎯 Speculative decoding ACTIVE — draft model attached. Run ⚡ Speed Test and compare against main-only.', 'success');
+    } else if (draftFile && winner.version.startsWith('3')) {
+      sysLog('🎯 Draft model NOT attached (engine rejected the wiring) — running main-only. Paste the [engine] lines above to get this fixed.', 'warn');
+    }
+
+    if (winner.version.startsWith('3')) {
+      try {
+        sysLog(`[engine] threads: ${wllama.getNumThreads()} · multi-thread: ${wllama.isMultithread() ? 'yes' : 'no'}`);
+      } catch {}
+    }
+
+    const isV3winner = winner.version.startsWith('3');
+    modelInfo = {
+      name: displayName, sizeMB: totalMB, ctx: nCtx, engine, engineVersion: winner.version, arch: mainArch,
+      draftName: winDraft ? draftFile.name : null,
+      vision: winMm, visionName: winMm ? mmprojFile.name : null,
+      draftParams: winDraft ? { max: settings.perf.draftMax, pMin: settings.perf.draftPMin } : null,
+      perf: isV3winner
+        ? (winMode === 'fast'
+            ? { flash: settings.perf.flash, kvK: settings.perf.flash ? settings.perf.kv : 'f16', kvV: settings.perf.flash ? settings.perf.kv : 'f16', batch: settings.perf.batch, overridden: false }
+            : { ...desiredPerf(), overridden: true })
+        : null,
+    };
+    loadedFiles = loadFiles;
+    modelStatus.textContent = `${displayName} · ${totalMB} MB · ${ENGINE_LABELS[engine]} · ${nCtx} ctx${winDraft ? ' · 🎯' : ''}`;
+
+    finishProgress(true, 'System online');
+    history = [];
+    const perfTag = isV3winner && winMode === 'fast' ? ` · ⚡ FA ${modelInfo.perf.flash ? 'on' : 'off'} · KV ${modelInfo.perf.kvK}` : '';
+    showNote(`Engine online — <strong>${escapeHtml(displayName)}</strong> · ${totalMB} MB · ${ENGINE_LABELS[engine]} · ${nCtx} ctx · wllama v${winner.version}${winDraft ? ` · 🎯 draft ${escapeHtml(draftFile.name)}` : ''}${winMm ? ' · 👁 vision' : ''}${perfTag}`);
+    userInput.disabled = false;
+    userInput.placeholder = 'Message the model…';
+    setSendMode('send');
+    benchBtn.disabled = false;
+    updateDraftUI();
+    updateReloadHint();
+    renderTray();
+    sysLog('SUCCESS: engine ready. Run ⚡ Speed Test to measure your tok/s.', 'success');
+    userInput.focus();
+  } catch (err) {
+    const msg = err?.message || String(err);
+    sysLog(`LOAD ERROR: ${msg}`, 'error');
+    finishProgress(false, 'Load failed');
+    if (/gguf|invalid magic/i.test(msg)) sysLog('This looks like a bad model file — re-download it and check the size.', 'warn');
+    else if (/wasm|stalled/i.test(msg)) sysLog('Engine files unreachable — check the [engine] lines above.', 'warn');
+    wllama = null;
+    modelStatus.textContent = 'load failed — no model';
+    userInput.disabled = true;
+    userInput.placeholder = 'Engine offline — load a model first.';
+    setSendMode('send');
+    benchBtn.disabled = true;
+    updateDraftUI();
+    updateReloadHint();
+  } finally {
+    isLoading = false;
+  }
+}
+
+function modeLabelFor(mode, dp) {
+  if (mode === 'fast') return `fast (FA ${dp.flash ? 'on' : 'off'} · KV ${dp.kvK}/${dp.kvV} · batch ${dp.batch})`;
+  if (mode === 'safe') return 'safe defaults';
+  return 'legacy';
+}
+
+ggufInput.addEventListener('change', e => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  if (files.length) loadModelFiles(files);
+});
+
+/* ================= 👁 VISION PROJECTOR ================= */
+function updateMmprojUI() {
+  if (!mmprojFile) { mmprojStatus.textContent = MMPROJ_HINT; mmprojRemove.hidden = true; return; }
+  const active = !!(wllama && modelInfo && modelInfo.visionName === mmprojFile.name);
+  mmprojStatus.textContent = `${mmprojFile.name} · ${(mmprojFile.size / 1048576).toFixed(0)} MB — ${active ? 'ACTIVE' : 'applies on restart'}`;
+  mmprojRemove.hidden = false;
+}
+async function setMmproj(f) {
+  let arch = null;
+  try { arch = (await parseGgufStructure(f)).arch; } catch {}
+  if (arch && arch !== 'clip') {
+    sysLog(`👁 "${f.name}" has architecture "${arch}", not a vision projector (expected "clip") — ignored.`, 'warn');
+    return false;
+  }
+  mmprojFile = f; mmprojArch = arch;
+  sysLog(`👁 Vision projector: ${f.name} (${(f.size / 1048576).toFixed(0)} MB${arch ? ' · ' + arch : ''}) — applies on engine restart.`, 'info');
+  updateMmprojUI(); updateReloadHint(); renderTray();
+  return true;
+}
+mmprojInput.addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  if (!/\.(gguf|bin)$/i.test(f.name)) { sysLog(`👁 "${f.name}" is not a .gguf file.`, 'warn'); return; }
+  await setMmproj(f);
+});
+mmprojRemove.addEventListener('click', () => {
+  mmprojFile = null; mmprojArch = null;
+  sysLog('👁 Vision projector removed — applies on engine restart.', 'info');
+  updateMmprojUI(); updateReloadHint(); renderTray();
+});
+
+/* ================= 📎 ATTACHMENTS ================= */
+const visionReady = () => !!(modelInfo && modelInfo.vision);
+const fmtSize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+
+async function prepareImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error('this browser could not decode the image'));
+      i.src = url;
+    });
+    const W = img.naturalWidth, H = img.naturalHeight;
+    if (!W || !H) throw new Error('image has no size');
+    const scale = Math.min(1, MAX_IMG_SIDE / Math.max(W, H));
+    const w = Math.max(1, Math.round(W * scale)), h = Math.max(1, Math.round(H * scale));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);     // flatten transparency
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    if (!blob) throw new Error('could not re-encode the image');
+    const buf = await blob.arrayBuffer();
+    const ts = Math.min(1, 160 / Math.max(w, h));
+    const t = document.createElement('canvas');
+    t.width = Math.max(1, Math.round(w * ts)); t.height = Math.max(1, Math.round(h * ts));
+    t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+    return { buf, thumb: t.toDataURL('image/jpeg', 0.7), w, h };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function addAttachments(fileList) {
+  for (const f of Array.from(fileList || [])) {
+    const label = f.name || 'pasted image';
+    try {
+      if (/\.(gguf|bin)$/i.test(f.name || '')) { sysLog(`📎 "${label}" is a model file — use "Load .GGUF Model" (or 👁 for a projector).`, 'warn'); continue; }
+      if ((f.type || '').startsWith('image/')) {
+        if (pendingAttachments.filter(a => a.kind === 'image').length >= MAX_IMAGES) { sysLog(`📎 Max ${MAX_IMAGES} images per message.`, 'warn'); continue; }
+        const { buf, thumb, w, h } = await prepareImage(f);
+        pendingAttachments.push({ kind: 'image', name: f.name || 'pasted-image.png', size: f.size, buf, thumb, w, h });
+        sysLog(`📎 Image ready: ${label} (${w}×${h}${w !== 0 && (w === MAX_IMG_SIDE || h === MAX_IMG_SIDE) ? ', downscaled' : ''}).`, 'info');
+      } else if ((f.type || '').startsWith('text/') || f.type === 'application/json' || TEXT_EXT.test(f.name || '')) {
+        if (pendingAttachments.filter(a => a.kind === 'text').length >= MAX_TEXT_FILES) { sysLog(`📎 Max ${MAX_TEXT_FILES} text files per message.`, 'warn'); continue; }
+        if (f.size > MAX_TEXT_FILE_BYTES) { sysLog(`📎 "${label}" is over ${fmtSize(MAX_TEXT_FILE_BYTES)} — too large to paste into the context.`, 'warn'); continue; }
+        const text = await f.text();
+        if (text.slice(0, 4096).includes('\u0000')) { sysLog(`📎 "${label}" looks binary — only plain-text files can be attached.`, 'warn'); continue; }
+        pendingAttachments.push({ kind: 'text', name: f.name, size: f.size, text });
+        sysLog(`📎 File ready: ${label} (${fmtSize(f.size)}, ${text.length.toLocaleString()} chars).`, 'info');
+      } else {
+        sysLog(`📎 "${label}": unsupported file type${/\.(pdf|docx?|xlsx?|pptx?)$/i.test(f.name || '') ? ' — PDF/Office files aren\'t supported yet; export or copy the text into a .txt/.md file' : ''}.`, 'warn');
+      }
+    } catch (e) {
+      sysLog(`📎 Could not attach "${label}": ${e?.message || e}`, 'error');
+    }
+  }
+  renderTray();
+}
+
+function renderTray() {
+  attachTray.innerHTML = '';
+  attachTray.hidden = pendingAttachments.length === 0;
+  pendingAttachments.forEach((a, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'attach-chip';
+    if (a.kind === 'image') { const img = new Image(); img.src = a.thumb; img.alt = ''; chip.appendChild(img); }
+    else { const d = document.createElement('div'); d.className = 'doc'; d.textContent = '📄'; chip.appendChild(d); }
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = a.name; nm.title = a.name;
+    const sz = document.createElement('div'); sz.className = 'sz'; sz.textContent = a.kind === 'image' ? `${a.w}×${a.h}` : fmtSize(a.size);
+    meta.append(nm, sz); chip.appendChild(meta);
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '✕'; x.title = 'Remove';
+    x.addEventListener('click', () => { pendingAttachments.splice(idx, 1); renderTray(); });
+    chip.appendChild(x);
+    attachTray.appendChild(chip);
+  });
+  if (pendingAttachments.some(a => a.kind === 'image') && !visionReady()) {
+    const w = document.createElement('div'); w.className = 'attach-warn';
+    w.textContent = '⚠ Images need a vision projector (👁 in the sidebar, then ♻ Restart) — they can\'t be sent until one is loaded.';
+    attachTray.appendChild(w);
+  }
+  if (!isGenerating) setSendMode('send');
+}
+
+function composeUserContent(typed, atts, budgetTokens) {
+  const est = s => Math.ceil((s || '').length / 3);
+  const imgs = atts.filter(a => a.kind === 'image').length;
+  let remaining = Math.max(0, budgetTokens - est(typed) - imgs * IMG_TOKENS - 64) * 3;   // chars
+  const blocks = [], truncated = [];
+  const textAtts = atts.filter(x => x.kind === 'text');
+  for (let idx = 0; idx < textAtts.length; idx++) {
+    const a = textAtts[idx];
+    const overhead = a.name.length + 40;
+    // fair share: unused room from small files rolls over to the later ones
+    const room = Math.max(0, Math.floor(remaining / (textAtts.length - idx)) - overhead);
+    let body = a.text;
+    if (body.length > room) {
+      truncated.push(a.name);
+      body = body.slice(0, room) + `\n[… truncated: ${(a.text.length - room).toLocaleString()} more characters not shown]`;
+    }
+    remaining = Math.max(0, remaining - body.length - overhead);
+    const fence = body.includes('```') ? '~~~~' : '```';
+    blocks.push(`File: ${a.name}\n${fence}\n${body}\n${fence}`);
+  }
+  const content = blocks.length ? typed + (typed ? '\n\n' : '') + blocks.join('\n\n') : typed;
+  return { content, truncated };
+}
+
+function toApiMessage(m) {
+  if (m.images && m.images.length && visionReady()) {
+    // slice(0): the engine may transfer the buffer to its worker; keep our copy intact for later turns
+    return { role: m.role, content: [...m.images.map(b => ({ type: 'image', data: b.slice(0) })), { type: 'text', text: m.content }] };
+  }
+  return { role: m.role, content: m.content };
+}
+
+attachBtn.addEventListener('click', () => attachInput.click());
+attachInput.addEventListener('change', e => { const fl = Array.from(e.target.files); e.target.value = ''; addAttachments(fl); });
+userInput.addEventListener('paste', e => {
+  const files = Array.from(e.clipboardData?.files || []).filter(f => (f.type || '').startsWith('image/'));
+  if (files.length) { e.preventDefault(); addAttachments(files); }
+});
+let dragDepth = 0;
+const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+document.addEventListener('dragenter', e => { if (hasFiles(e)) { dragDepth++; document.body.classList.add('drag-over'); } });
+document.addEventListener('dragleave', e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('drag-over'); } });
+document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+document.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove('drag-over');
+  addAttachments(e.dataTransfer.files);
+});
+
+/* ================= CONTEXT MANAGEMENT ================= */
+function buildContextMessages() {
+  const budget = Math.max(256, (modelInfo?.ctx || 2048) - settings.nPredict - 256);
+  const est = s => Math.ceil((s || '').length / 3);
+  const out = [];
+  let used = 0;
+  const sys = systemPromptEl.value.trim();
+  if (sys) { out.push({ role: 'system', content: sys }); used += est(sys); }
+  const kept = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    const t = est(m.content) + (m.images?.length || 0) * IMG_TOKENS;
+    if (used + t > budget && kept.length >= 1) break;
+    used += t;
+    kept.unshift(m);
+  }
+  return out.concat(kept);
+}
+
+/* ================= GENERATION (version-aware adapter) ================= */
+async function runGeneration(messages, opts) {
+  const isV3 = modelInfo.engineVersion.startsWith('3');
+
+  if (!isV3) {
+    let acc = '';
+    const result = await wllama.createChatCompletion(messages, {
+      nPredict: opts.maxTokens,
+      sampling: { temp: opts.temp, top_p: opts.topP, top_k: opts.topK, penalty_repeat: opts.repPenalty, penalty_last_n: 64 },
+      onNewToken: (token, piece, currentText, optionals) => {
+        acc = currentText;
+        opts.onPiece(piece, currentText);
+        if (opts.signal?.aborted) { try { optionals?.abortSignal?.(); } catch {} }
+      },
+    });
+    if (typeof result === 'string' && result.trim() && result.length >= acc.length) return result;
+    return acc;
+  }
+
+  let reasoning = '', content = '';
+  const synth = () => (reasoning ? THINK_OPEN + reasoning + THINK_CLOSE : '') + content;
+
+  const req = {
+    messages,
+    max_tokens: opts.maxTokens,
+    temperature: opts.temp,
+    top_p: opts.topP,
+    top_k: opts.topK,
+    penalty_repeat: opts.repPenalty,
+    penalty_last_n: 64,
+    cache_prompt: true,
+    stream: true,
+    abortSignal: opts.signal,
+  };
+  if (!settings.thinking) req.chat_template_kwargs = { enable_thinking: false };
+
+  const result = await wllama.createChatCompletion(req);
+
+  if (result && typeof result[Symbol.asyncIterator] === 'function') {
+    for await (const chunk of result) {
+      const d = chunk?.choices?.[0]?.delta || {};
+      let got = false;
+      if (d.reasoning_content) { reasoning += d.reasoning_content; got = true; }
+      if (typeof d.content === 'string' && d.content) { content += d.content; got = true; }
+      if (got) opts.onPiece(null, synth());
+      if (chunk?.usage) opts.onUsage(chunk.usage);
+    }
+  } else if (result && typeof result === 'object') {
+    const msg = result?.choices?.[0]?.message || {};
+    if (msg.reasoning_content) reasoning += msg.reasoning_content;
+    if (typeof msg.content === 'string') content += msg.content;
+    if (result?.usage) opts.onUsage(result.usage);
+    if (content || reasoning) opts.onPiece(null, synth());
+  }
+
+  if (!content && !reasoning && !opts.signal?.aborted) {
+    sysLog('[gen] v3 streaming produced no text — retrying once in non-streaming mode…', 'warn');
+    const r2 = await wllama.createChatCompletion({ ...req, stream: false });
+    const msg = r2?.choices?.[0]?.message || {};
+    if (msg.reasoning_content) reasoning += msg.reasoning_content;
+    if (typeof msg.content === 'string') content += msg.content;
+    if (r2?.usage) opts.onUsage(r2.usage);
+    if (content || reasoning) opts.onPiece(null, synth());
+  }
+
+  return synth();
+}
+
+async function handleSendMessage() {
+  if (isGenerating || isLoading || !wllama) return;
+  const typedRaw = userInput.value.trim();
+  const atts = pendingAttachments.slice();
+  if (!typedRaw && !atts.length) return;
+  const imgAtts = atts.filter(a => a.kind === 'image');
+  if (imgAtts.length && !visionReady()) {
+    sysLog('📎 Can\'t send images: no vision projector is active. Pick one with 👁 in the sidebar (mmproj-*.gguf from your model\'s repo), then ♻ Restart — or remove the images.', 'warn');
+    renderTray();
+    return;
+  }
+  const typed = typedRaw || (imgAtts.length > 1 ? 'Describe these images.' : imgAtts.length ? 'Describe this image.' : 'Summarize the attached file.');
+  const sysTok = Math.ceil(systemPromptEl.value.trim().length / 3);
+  const budget = Math.floor(Math.max(256, (modelInfo?.ctx || 2048) - settings.nPredict - 256 - sysTok) * 0.85);
+  const { content, truncated } = composeUserContent(typed, atts, budget);
+
+  userInput.value = '';
+  userInput.style.height = 'auto';
+  pendingAttachments = [];
+  renderTray();
+  const entry = {
+    role: 'user', content,
+    images: imgAtts.map(a => a.buf),
+    attachments: atts.map(a => ({ kind: a.kind, name: a.name, size: a.size, thumb: a.thumb })),
+  };
+  history.push(entry);
+  appendUserMessage(typed, entry.attachments);
+  if (truncated.length) sysLog(`📎 Truncated to fit the ${modelInfo?.ctx}-token context: ${truncated.join(', ')}. Raise context in Settings (then ♻ Restart) to include more.`, 'warn');
+
+  const { temp, topP, topK, repPenalty, nPredict } = settings;
+  const messages = buildContextMessages().map(toApiMessage);
+  if (!settings.thinking) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        const c = messages[i].content;
+        if (typeof c === 'string') messages[i].content = c + ' /no_think';
+        else { const tp = c.find(x => x.type === 'text'); if (tp) tp.text += ' /no_think'; }
+        break;
+      }
+    }
+  }
+
+  if (nPredict > (modelInfo.ctx - 256)) sysLog('Warning: max new tokens is close to context size — history trimmed hard.', 'warn');
+  sysLog(`Inference start · ${ENGINE_LABELS[modelInfo.engine]}${modelInfo.draftName ? ' + 🎯 draft' : ''} · thinking ${settings.thinking ? 'ON' : 'OFF'} · temp ${temp.toFixed(2)} · top_p ${topP} · top_k ${topK} · nPredict ${nPredict} · ${messages.length} msgs.`, 'info');
+
+  const { bubble } = appendMessage('ai', '');
+  isGenerating = true;
+  stopRequested = false;
+  abortCtrl = new AbortController();
+  setSendMode('stop');
+  userInput.disabled = true;
+
+  const t0 = performance.now();
+  let tokens = 0, current = '', lastPaint = 0, failure = null, finalUsage = null, hintStage = 0;
+
+  const stallChecker = setInterval(() => {
+    if (!isGenerating) { clearInterval(stallChecker); return; }
+    if (tokens > 0) return;
+    const elapsed = (performance.now() - t0) / 1000;
+    if (elapsed > 240 && hintStage < 3) {
+      hintStage = 3;
+      sysLog(`⏳ No tokens after ${Math.round(elapsed)}s — WebGPU looks stuck on this device. Press Esc to stop, then Settings → Advanced → 🐢 Single-Thread CPU → ♻ Restart Engine.`, 'warn');
+    } else if (elapsed > 90 && hintStage < 2) {
+      hintStage = 2;
+      sysLog(`⏳ Still no tokens after ${Math.round(elapsed)}s — first-run WebGPU shader compilation can be very slow on integrated GPUs. Waiting…`, 'warn');
+    } else if (elapsed > 30 && hintStage < 1) {
+      hintStage = 1;
+      sysLog(`⏳ Waiting for first token (${Math.round(elapsed)}s)… Qwen3 thinks before answering; WebGPU also compiles shaders on the first run.`, 'warn');
+    }
+  }, 5000);
+
+  const scrollIfNear = () => {
+    if (chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 140)
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+  };
+  const paintLive = () => {
+    const prev = bubble.querySelector('details.thought-process');
+    const keepOpen = prev ? prev.open : true;
+    const { think, response } = parseThinking(current);
+    let html = '';
+    if (think) html += `<details class="thought-process"${keepOpen ? ' open' : ''}><summary>Thinking…</summary><div class="thought-content">${formatMarkdown(think)}</div></details>`;
+    if (response) html += formatMarkdown(response) + '<span class="caret"></span>';
+    else if (!think) html += '<p class="pending"><span class="caret"></span></p>';
+    const elapsed = (performance.now() - t0) / 1000;
+    if (tokens > 2) html += `<div class="response-metrics metrics-live"><span>⏱️ ${elapsed.toFixed(1)}s</span><span>⚡ ${(tokens / Math.max(elapsed, .001)).toFixed(1)} t/s</span></div>`;
+    bubble.innerHTML = html;
+    scrollIfNear();
+  };
+  const onPiece = (piece, fullText) => {
+    if (tokens === 0) sysLog(`First token after ${((performance.now() - t0) / 1000).toFixed(1)}s.`, 'info');
+    tokens++;
+    if (typeof fullText === 'string' && fullText.length >= current.length) current = fullText;
+    else if (piece) current += piece;
+    const now = performance.now();
+    if (now - lastPaint > 90) { lastPaint = now; paintLive(); }
+  };
+
+  try {
+    const finalText = await runGeneration(messages, {
+      maxTokens: nPredict, temp, topP, topK, repPenalty,
+      signal: abortCtrl.signal,
+      onPiece,
+      onUsage: (u) => { finalUsage = u; },
+    });
+    if (typeof finalText === 'string' && finalText.length >= current.length) current = finalText;
+  } catch (err) {
+    const aborted = stopRequested || abortCtrl.signal.aborted ||
+      err?.name === 'AbortError' || /abort/i.test(err?.message || '');
+    if (aborted) sysLog('Generation stopped by user.', 'warn');
+    else {
+      failure = err?.message || String(err);
+      sysLog(`INFERENCE ERROR: ${failure}`, 'error');
+      if (/kv_cache_full|context/i.test(failure)) sysLog('Context is full — lower max new tokens or hit New Chat.', 'warn');
+    }
+  }
+  clearInterval(stallChecker);
+
+  const duration = (performance.now() - t0) / 1000;
+  if (finalUsage?.completion_tokens) tokens = finalUsage.completion_tokens;
+  const reasonTok = finalUsage?.completion_tokens_details?.reasoning_tokens;
+
+  const { think, response } = parseThinking(current);
+  let final = '';
+  if (think) final += `<details class="thought-process"><summary>Thought process · ${duration.toFixed(1)}s</summary><div class="thought-content">${formatMarkdown(think)}</div></details>`;
+  if (response) final += formatMarkdown(response);
+  if (!think && !response) final += `<p class="pending"><em>${failure ? 'Error: ' + escapeHtml(failure) : 'No output generated.'}</em></p>`;
+  else if (failure) final += `<p style="color:var(--danger)"><em>Error: ${escapeHtml(failure)}</em></p>`;
+  final += `<div class="response-metrics"><span>⏱️ ${duration.toFixed(1)}s</span><span>⚡ ${duration > 0 ? (tokens / duration).toFixed(1) : '0'} t/s</span><span>🔢 ${tokens} tok</span>${reasonTok ? `<span>🧠 ${reasonTok} think</span>` : ''}${modelInfo.draftName ? '<span>🎯</span>' : ''}</div>`;
+  bubble.innerHTML = final;
+
+  if (current.trim()) {
+    history.push({ role: 'assistant', content: current });
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn'; btn.type = 'button'; btn.textContent = 'Copy';
+    btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(current); btn.textContent = 'Copied ✓'; }
+      catch { btn.textContent = 'Copy failed'; }
+      setTimeout(() => (btn.textContent = 'Copy'), 1500);
+    });
+    bubble.appendChild(btn);
+  }
+
+  sysLog(`Done: ${tokens} tokens in ${duration.toFixed(1)}s${reasonTok ? ` (${reasonTok} reasoning)` : ''}${modelInfo.draftName ? ' · 🎯 draft' : ''}.`, 'info');
+  isGenerating = false;
+  abortCtrl = null;
+  userInput.disabled = false;
+  setSendMode('send');
+  userInput.focus();
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+/* ================= ⚡ SPEED TEST ================= */
+const BENCH_PROMPT = 'Describe a storm over the ocean in one vivid paragraph.';
+
+async function runBenchmark() {
+  if (!wllama || isGenerating || isLoading) { sysLog('Speed test needs a loaded, idle model.', 'warn'); return; }
+  benchBtn.disabled = true;
+  sysLog(`⚡ Speed test: generating 64 tokens (thinking off${modelInfo.draftName ? ', draft on' : ''}, chat history untouched)…`, 'info');
+
+  const isV3 = modelInfo.engineVersion.startsWith('3');
+  const t0 = performance.now();
+  let tokens = 0, timings = null, failure = null;
+  try {
+    if (isV3) {
+      const res = await wllama.createChatCompletion({
+        messages: [{ role: 'user', content: BENCH_PROMPT }],
+        max_tokens: 64,
+        temperature: 0.7,
+        top_p: 0.95,
+        stream: true,
+        cache_prompt: false,
+        chat_template_kwargs: { enable_thinking: false },
+      });
+      if (res && typeof res[Symbol.asyncIterator] === 'function') {
+        for await (const ch of res) {
+          if (ch?.choices?.[0]?.delta?.content) tokens++;
+          if (ch?.timings) timings = ch.timings;
+        }
+      } else {
+        tokens = res?.usage?.completion_tokens ?? 0;
+        timings = res?.timings ?? null;
+      }
+    } else {
+      await wllama.createChatCompletion([{ role: 'user', content: BENCH_PROMPT }], {
+        nPredict: 64,
+        sampling: { temp: 0.7 },
+        onNewToken: () => tokens++,
+      });
+    }
+  } catch (e) { failure = e?.message || String(e); }
+
+  const secs = (performance.now() - t0) / 1000;
+  const draftTag = modelInfo.draftName ? ' · 🎯 draft' : '';
+  if (failure) {
+    sysLog(`⚡ Speed test failed: ${failure}`, 'error');
+  } else if (timings && (timings.predicted_per_second || timings.prompt_per_second)) {
+    sysLog(`⚡ RESULT · prefill: ${timings.prompt_n} tok @ ${(timings.prompt_per_second || 0).toFixed(1)} tok/s · decode: ${timings.predicted_n} tok @ ${(timings.predicted_per_second || 0).toFixed(1)} tok/s${draftTag}`, 'success');
+    sysLog(`⚡ (${ENGINE_LABELS[modelInfo.engine]} · FA ${modelInfo.perf?.flash ? 'on' : 'off'} · KV ${modelInfo.perf?.kvK || 'n/a'}${draftTag})`, 'info');
+  } else {
+    sysLog(`⚡ RESULT: ${tokens} tokens in ${secs.toFixed(1)}s ≈ ${(tokens / Math.max(secs, .001)).toFixed(1)} tok/s overall (includes prompt processing)${draftTag}`, 'success');
+  }
+  benchBtn.disabled = false;
+}
+benchBtn.addEventListener('click', runBenchmark);
+
+/* ================= EVENTS ================= */
+function requestStop() {
+  if (!isGenerating) return;
+  stopRequested = true;
+  sendBtn.disabled = true;
+  sysLog('Stop requested…', 'warn');
+  try { abortCtrl?.abort(); } catch {}
+}
+sendBtn.addEventListener('click', () => {
+  if (isGenerating) requestStop();
+  else handleSendMessage();
+});
+userInput.addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+  if (!isGenerating) setSendMode('send');
+});
+userInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!isGenerating && !sendBtn.disabled) handleSendMessage();
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!settingsOverlay.hidden) { closeSettings(); return; }
+  if (!splitOverlay.hidden && splitMode === 'ask') { closeSplitPopup(); return; }
+  requestStop();
+});
+newChatBtn.addEventListener('click', () => {
+  if (!wllama) { sysLog('No model loaded yet.', 'warn'); return; }
+  if (isGenerating) { sysLog('Stop the current generation first.', 'warn'); return; }
+  history = [];
+  pendingAttachments = []; renderTray();
+  showNote(`Fresh context — <strong>${escapeHtml(modelInfo.name)}</strong>`);
+  sysLog('Chat history cleared.', 'info');
+});
+
+/* ================= STARTUP ================= */
+setSendMode('send');
+syncSettingsUI();
+syncThinkToggle();
+
+sysLog('Nexus Studio initialized.', 'system');
+sysLog(`Engine: wllama v${PREFERRED_VERSION} (verified v3 config) → v2.3.1 fallback. Set PREFERRED_VERSION='2.3.1' to skip v3.`, 'info');
+sysLog('🎯 Speculative decoding: load a small same-family model via 🎯 Draft model (e.g. Qwen3-0.6B for Qwen3-1.7B/4B) → ♻ Restart. MTP drafter GGUFs (Gemma 4 / GLM) use the same slot.', 'info');
+sysLog(`⚡ Token speed: FA ${settings.perf.flash ? 'on' : 'off'} · KV cache ${settings.perf.kv} · batch ${settings.perf.batch} — tune in Settings → Advanced, apply with ♻ Restart, measure with ⚡ Speed Test.`, 'info');
+sysLog('✂️ Oversized files (>~1.94 GB) offer an automatic tensor-aware splitter that writes shards to Downloads.', 'info');
+sysLog(`Thinking mode: ${settings.thinking ? 'ON (default) — toggle with the 🧠 button in the input bar' : 'OFF'}.`, 'info');
+if (webgpuAvailable) {
+  sysLog('WebGPU: available ✓ — GPU inference needs no COOP/COEP. Pick 🚀 in Settings → Advanced.', 'success');
+} else {
+  sysLog('WebGPU: not available in this browser — CPU only.', 'warn');
+}
+if (window.crossOriginIsolated) {
+  sysLog('Cross-origin isolated: YES — CPU multi-thread available.', 'success');
+} else {
+  sysLog('Cross-origin isolated: NO — CPU multi-thread unavailable (WebGPU is unaffected).', 'warn');
+}
+sysLog(`Logical cores: ${navigator.hardwareConcurrency || 'unknown'}`);
+if (location.protocol === 'file:') sysLog('⚠️ Opened from file:// — the engine runs in a Web Worker loaded from a CDN, which browsers block from file:// pages, so model loading will hang. Serve this file over http (e.g. run `python -m http.server 8000` in its folder, then open http://localhost:8000/code.html).', 'error');
+    </script>
+</body>
+
+</html>
